@@ -1,0 +1,2243 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Actor-Critic 强化学习算法讲解</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #17211c;
+      --muted: #5e6f67;
+      --paper: #f8f6ef;
+      --panel: #ffffff;
+      --line: #d8ded6;
+      --actor: #0e7c86;
+      --critic: #b7552c;
+      --good: #287447;
+      --warn: #a76a16;
+      --shadow: 0 18px 45px rgba(23, 33, 28, 0.12);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      color: var(--ink);
+      background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.5), rgba(248, 246, 239, 0.92)),
+        radial-gradient(circle at 15% 0%, rgba(14, 124, 134, 0.12), transparent 32%),
+        radial-gradient(circle at 90% 12%, rgba(183, 85, 44, 0.13), transparent 30%),
+        var(--paper);
+      font-family: Inter, "Noto Sans SC", "Microsoft YaHei", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+      line-height: 1.65;
+    }
+
+    main {
+      width: min(1120px, calc(100% - 32px));
+      margin: 0 auto;
+    }
+
+    .hero {
+      min-height: 92vh;
+      display: grid;
+      grid-template-columns: minmax(0, 1.05fr) minmax(320px, 0.95fr);
+      gap: 44px;
+      align-items: center;
+      padding: 56px 0 36px;
+    }
+
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 18px;
+      color: var(--actor);
+      font-size: 14px;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    h1, h2, h3 {
+      margin: 0;
+      line-height: 1.15;
+      letter-spacing: 0;
+    }
+
+    h1 {
+      max-width: 780px;
+      font-size: clamp(42px, 8vw, 88px);
+    }
+
+    h2 {
+      font-size: clamp(28px, 4vw, 46px);
+      margin-bottom: 20px;
+    }
+
+    h3 {
+      font-size: 21px;
+      margin-bottom: 10px;
+    }
+
+    p {
+      margin: 0;
+      color: var(--muted);
+    }
+
+    .lead {
+      max-width: 700px;
+      margin-top: 22px;
+      font-size: clamp(18px, 2vw, 22px);
+      color: #46564e;
+    }
+
+    .hero-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-top: 30px;
+    }
+
+    .button {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 12px 18px;
+      background: var(--ink);
+      color: #fff;
+      font: inherit;
+      font-weight: 800;
+      text-decoration: none;
+      cursor: pointer;
+      transition: transform 160ms ease, box-shadow 160ms ease, background 160ms ease;
+    }
+
+    .button.secondary {
+      background: #fff;
+      color: var(--ink);
+    }
+
+    .button:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 12px 24px rgba(23, 33, 28, 0.14);
+    }
+
+    .visual {
+      position: relative;
+      min-height: 480px;
+      border: 1px solid rgba(216, 222, 214, 0.92);
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.72);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    .loop {
+      position: absolute;
+      inset: 26px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      grid-template-rows: 1fr 1fr;
+      gap: 20px;
+    }
+
+    .node {
+      display: grid;
+      place-items: center;
+      min-height: 170px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+      text-align: center;
+      padding: 22px;
+    }
+
+    .node strong {
+      display: block;
+      margin-bottom: 8px;
+      font-size: 22px;
+    }
+
+    .node span {
+      color: var(--muted);
+      font-size: 15px;
+    }
+
+    .node.actor {
+      border-color: rgba(14, 124, 134, 0.38);
+      box-shadow: inset 0 0 0 3px rgba(14, 124, 134, 0.08);
+    }
+
+    .node.critic {
+      border-color: rgba(183, 85, 44, 0.38);
+      box-shadow: inset 0 0 0 3px rgba(183, 85, 44, 0.08);
+    }
+
+    .arrow {
+      position: absolute;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 92px;
+      height: 34px;
+      border-radius: 999px;
+      background: var(--ink);
+      color: #fff;
+      font-size: 13px;
+      font-weight: 800;
+      box-shadow: 0 10px 22px rgba(23, 33, 28, 0.18);
+    }
+
+    .arrow.a1 { top: 112px; left: calc(50% - 46px); }
+    .arrow.a2 { right: 58px; top: calc(50% - 17px); }
+    .arrow.a3 { bottom: 112px; left: calc(50% - 46px); }
+    .arrow.a4 { left: 58px; top: calc(50% - 17px); }
+
+    section {
+      padding: 54px 0;
+    }
+
+    .band {
+      width: 100vw;
+      margin-left: calc(50% - 50vw);
+      padding: 64px max(16px, calc((100vw - 1120px) / 2));
+      background: rgba(255, 255, 255, 0.62);
+      border-top: 1px solid rgba(216, 222, 214, 0.7);
+      border-bottom: 1px solid rgba(216, 222, 214, 0.7);
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 18px;
+    }
+
+    .card {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel);
+      padding: 22px;
+      box-shadow: 0 12px 30px rgba(23, 33, 28, 0.07);
+    }
+
+    .tag {
+      display: inline-flex;
+      margin-bottom: 14px;
+      border-radius: 999px;
+      padding: 5px 10px;
+      color: #fff;
+      font-size: 12px;
+      font-weight: 900;
+    }
+
+    .tag.actor { background: var(--actor); }
+    .tag.critic { background: var(--critic); }
+    .tag.bridge { background: var(--ink); }
+
+    .steps {
+      counter-reset: step;
+      display: grid;
+      gap: 14px;
+      margin: 24px 0 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .steps li {
+      counter-increment: step;
+      display: grid;
+      grid-template-columns: 44px 1fr;
+      gap: 16px;
+      align-items: start;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+      padding: 18px;
+    }
+
+    .steps li::before {
+      content: counter(step);
+      display: grid;
+      place-items: center;
+      width: 38px;
+      height: 38px;
+      border-radius: 50%;
+      background: var(--ink);
+      color: #fff;
+      font-weight: 900;
+    }
+
+    .formula {
+      overflow-x: auto;
+      margin-top: 18px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #10221c;
+      color: #eff8f2;
+      padding: 20px;
+      font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+      font-size: 15px;
+      line-height: 2.05;
+      white-space: normal;
+    }
+
+    .formula .eq {
+      display: block;
+      min-width: max-content;
+    }
+
+    .formula .label {
+      display: inline-block;
+      min-width: 128px;
+      color: #abd8c6;
+      font-weight: 800;
+    }
+
+    .formula sub,
+    .formula sup {
+      font-size: 0.74em;
+      line-height: 0;
+    }
+
+    .formula .frac {
+      display: inline-grid;
+      grid-template-rows: auto auto;
+      align-items: center;
+      justify-items: center;
+      vertical-align: middle;
+      margin: 0 4px;
+      line-height: 1.1;
+    }
+
+    .formula .frac span:first-child {
+      border-bottom: 1px solid currentColor;
+      padding: 0 6px 2px;
+    }
+
+    .formula .frac span:last-child {
+      padding-top: 2px;
+    }
+
+    .demo {
+      display: grid;
+      grid-template-columns: minmax(280px, 0.85fr) minmax(0, 1.15fr);
+      gap: 22px;
+      align-items: stretch;
+    }
+
+    .controls {
+      display: grid;
+      gap: 16px;
+    }
+
+    label {
+      display: grid;
+      gap: 8px;
+      color: var(--ink);
+      font-weight: 800;
+    }
+
+    input[type="range"] {
+      width: 100%;
+      accent-color: var(--actor);
+    }
+
+    .readout {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 12px;
+    }
+
+    .metric {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+      padding: 14px;
+    }
+
+    .metric b {
+      display: block;
+      font-size: 26px;
+      line-height: 1.2;
+    }
+
+    .metric span {
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .world {
+      min-height: 430px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background:
+        linear-gradient(90deg, rgba(14, 124, 134, 0.08) 1px, transparent 1px),
+        linear-gradient(rgba(14, 124, 134, 0.08) 1px, transparent 1px),
+        #fff;
+      background-size: 44px 44px;
+      padding: 20px;
+    }
+
+    .track {
+      position: relative;
+      height: 86px;
+      margin: 24px 0 30px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: linear-gradient(90deg, #f8fbfa, #eef7ef);
+      overflow: hidden;
+    }
+
+    .agent {
+      position: absolute;
+      top: 18px;
+      left: 12%;
+      display: grid;
+      place-items: center;
+      width: 48px;
+      height: 48px;
+      border-radius: 8px;
+      background: var(--actor);
+      color: #fff;
+      font-weight: 900;
+      transition: left 280ms ease;
+    }
+
+    .goal {
+      position: absolute;
+      top: 14px;
+      right: 18px;
+      display: grid;
+      place-items: center;
+      width: 56px;
+      height: 56px;
+      border-radius: 50%;
+      background: var(--good);
+      color: #fff;
+      font-weight: 900;
+    }
+
+    .bars {
+      display: grid;
+      gap: 14px;
+    }
+
+    .bar-line {
+      display: grid;
+      grid-template-columns: 92px 1fr 56px;
+      gap: 12px;
+      align-items: center;
+      color: var(--muted);
+      font-weight: 800;
+    }
+
+    .bar {
+      height: 16px;
+      border-radius: 999px;
+      background: #edf1ee;
+      overflow: hidden;
+    }
+
+    .bar > i {
+      display: block;
+      width: 50%;
+      height: 100%;
+      border-radius: inherit;
+      background: var(--actor);
+      transition: width 280ms ease, background 280ms ease;
+    }
+
+    .bar.value > i {
+      background: var(--critic);
+    }
+
+    .note {
+      margin-top: 18px;
+      border-left: 4px solid var(--warn);
+      padding: 12px 14px;
+      background: rgba(167, 106, 22, 0.08);
+      color: #5f4a22;
+    }
+
+    .compare {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 18px;
+    }
+
+    .toc {
+      display: grid;
+      grid-template-columns: repeat(6, 1fr);
+      gap: 12px;
+      margin-top: 30px;
+    }
+
+    .toc a {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.76);
+      padding: 12px 14px;
+      color: var(--ink);
+      font-weight: 850;
+      text-decoration: none;
+    }
+
+    .two-col {
+      display: grid;
+      grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+      gap: 22px;
+      align-items: start;
+    }
+
+    .term-list {
+      display: grid;
+      gap: 12px;
+      margin: 0;
+    }
+
+    .term-list div {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+      padding: 16px;
+    }
+
+    .term-list dt {
+      margin-bottom: 4px;
+      color: var(--ink);
+      font-weight: 900;
+    }
+
+    .term-list dd {
+      margin: 0;
+      color: var(--muted);
+    }
+
+    .callout {
+      border: 1px solid rgba(14, 124, 134, 0.24);
+      border-radius: 8px;
+      background: rgba(14, 124, 134, 0.08);
+      padding: 18px;
+    }
+
+    .callout strong {
+      display: block;
+      margin-bottom: 8px;
+      color: var(--actor);
+      font-size: 18px;
+    }
+
+    .code-block {
+      overflow-x: auto;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #111a17;
+      color: #ecf7f1;
+      padding: 20px;
+      font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+      font-size: 14px;
+      line-height: 1.75;
+      white-space: pre;
+    }
+
+    .table-wrap {
+      overflow-x: auto;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 720px;
+    }
+
+    th, td {
+      border-bottom: 1px solid var(--line);
+      padding: 14px 16px;
+      text-align: left;
+      vertical-align: top;
+    }
+
+    th {
+      background: #eef5f2;
+      color: var(--ink);
+      font-size: 14px;
+    }
+
+    td {
+      color: var(--muted);
+    }
+
+    tr:last-child td {
+      border-bottom: 0;
+    }
+
+    .mini-example {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+      margin-top: 18px;
+    }
+
+    .mini-example div {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+      padding: 14px;
+    }
+
+    .mini-example b {
+      display: block;
+      margin-bottom: 4px;
+      color: var(--ink);
+    }
+
+    .cartpole-lab {
+      display: grid;
+      grid-template-columns: minmax(0, 1.15fr) minmax(300px, 0.85fr);
+      gap: 20px;
+      align-items: stretch;
+      margin-top: 22px;
+    }
+
+    .cartpole-stage {
+      position: relative;
+      min-height: 440px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background:
+        linear-gradient(180deg, #f9fcfb 0%, #eef7f1 68%, #dfe9e3 68%, #dfe9e3 100%);
+      overflow: hidden;
+    }
+
+    .cartpole-rail {
+      position: absolute;
+      left: 7%;
+      right: 7%;
+      bottom: 96px;
+      height: 8px;
+      border-radius: 999px;
+      background: #738079;
+    }
+
+    .cartpole-cart {
+      position: absolute;
+      left: calc(50% - 44px);
+      bottom: 108px;
+      width: 88px;
+      height: 42px;
+      border: 2px solid #0d241d;
+      border-radius: 8px;
+      background: var(--actor);
+      box-shadow: 0 12px 18px rgba(23, 33, 28, 0.18);
+      transform: translateX(0);
+    }
+
+    .cartpole-cart::before,
+    .cartpole-cart::after {
+      content: "";
+      position: absolute;
+      bottom: -14px;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: #17211c;
+    }
+
+    .cartpole-cart::before { left: 12px; }
+    .cartpole-cart::after { right: 12px; }
+
+    .cartpole-pivot {
+      position: absolute;
+      left: 50%;
+      top: -6px;
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: #fff;
+      transform: translateX(-50%);
+      z-index: 2;
+    }
+
+    .cartpole-pole {
+      position: absolute;
+      left: 50%;
+      bottom: 32px;
+      width: 10px;
+      height: 178px;
+      border-radius: 999px;
+      background: var(--critic);
+      transform-origin: 50% 100%;
+      transform: translateX(-50%) rotate(0deg);
+      box-shadow: 0 8px 18px rgba(183, 85, 44, 0.25);
+    }
+
+    .force-arrow {
+      position: absolute;
+      bottom: 166px;
+      left: calc(50% + 58px);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--actor);
+      font-weight: 900;
+      transform: translateX(0);
+    }
+
+    .force-arrow::before {
+      content: "";
+      width: 70px;
+      height: 4px;
+      border-radius: 999px;
+      background: currentColor;
+    }
+
+    .force-arrow::after {
+      content: "";
+      width: 0;
+      height: 0;
+      border-top: 9px solid transparent;
+      border-bottom: 9px solid transparent;
+      border-left: 14px solid currentColor;
+    }
+
+    .force-arrow.left {
+      flex-direction: row-reverse;
+      color: var(--critic);
+    }
+
+    .force-arrow.left::after {
+      border-left: 0;
+      border-right: 14px solid currentColor;
+    }
+
+    .state-overlay {
+      position: absolute;
+      left: 18px;
+      top: 18px;
+      display: grid;
+      gap: 8px;
+      width: min(270px, calc(100% - 36px));
+    }
+
+    .state-chip {
+      display: grid;
+      grid-template-columns: 74px 1fr 64px;
+      gap: 8px;
+      align-items: center;
+      border: 1px solid rgba(216, 222, 214, 0.9);
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.86);
+      padding: 8px 10px;
+      font-size: 13px;
+      font-weight: 850;
+    }
+
+    .state-chip span {
+      color: var(--muted);
+    }
+
+    .state-chip meter {
+      width: 100%;
+      height: 10px;
+    }
+
+    .cartpole-panel {
+      display: grid;
+      gap: 14px;
+    }
+
+    .calc-flow {
+      display: grid;
+      gap: 10px;
+    }
+
+    .calc-row {
+      display: grid;
+      grid-template-columns: 96px 1fr;
+      gap: 10px;
+      align-items: start;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+      padding: 12px;
+    }
+
+    .calc-row b {
+      color: var(--ink);
+    }
+
+    .calc-row span {
+      color: var(--muted);
+      font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+      font-size: 13px;
+    }
+
+    .timeline {
+      position: relative;
+      height: 48px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+      overflow: hidden;
+    }
+
+    .timeline i {
+      position: absolute;
+      left: 0;
+      top: 0;
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, rgba(14, 124, 134, 0.16), rgba(40, 116, 71, 0.22));
+    }
+
+    .timeline span {
+      position: absolute;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      color: var(--ink);
+      font-weight: 900;
+    }
+
+    footer {
+      padding: 42px 0 56px;
+      color: var(--muted);
+      text-align: center;
+    }
+
+    @media (max-width: 850px) {
+      .hero,
+      .demo,
+      .grid,
+      .compare,
+      .toc,
+      .two-col,
+      .mini-example,
+      .cartpole-lab {
+        grid-template-columns: 1fr;
+      }
+
+      .hero {
+        padding-top: 34px;
+      }
+
+      .visual {
+        min-height: 430px;
+      }
+
+      .loop {
+        inset: 16px;
+        gap: 12px;
+      }
+
+      .node {
+        min-height: 154px;
+        padding: 16px;
+      }
+
+      .arrow {
+        min-width: 74px;
+        font-size: 12px;
+      }
+
+      .arrow.a2 { right: 30px; }
+      .arrow.a4 { left: 30px; }
+
+      .readout {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media (max-width: 560px) {
+      main {
+        width: min(100% - 22px, 1120px);
+      }
+
+      h1 {
+        font-size: 40px;
+      }
+
+      .visual {
+        min-height: 610px;
+      }
+
+      .loop {
+        display: flex;
+        flex-direction: column;
+      }
+
+      .arrow {
+        display: none;
+      }
+
+      .bar-line {
+        grid-template-columns: 78px 1fr 48px;
+        gap: 8px;
+        font-size: 13px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header class="hero">
+      <div>
+        <div class="eyebrow">Reinforcement Learning</div>
+        <h1>Actor-Critic 算法：一边行动，一边评价</h1>
+        <p class="lead">Actor 像“决策者”，负责选动作；Critic 像“教练”，负责估计这个动作之后的长期价值。两者互相配合，让策略更新不再只靠稀疏、吵闹的回报信号。</p>
+        <div class="hero-actions">
+          <a class="button" href="#demo">看交互演示</a>
+          <a class="button secondary" href="#math">看更新公式</a>
+        </div>
+        <nav class="toc" aria-label="页面导航">
+          <a href="#foundation">基础符号</a>
+          <a href="#gradient">策略梯度</a>
+          <a href="#math">公式推导</a>
+          <a href="#implementation">代码实现</a>
+          <a href="#ppo">学习 PPO</a>
+          <a href="#practice">实践建议</a>
+        </nav>
+      </div>
+      <div class="visual" aria-label="Actor-Critic 算法流程图">
+        <div class="loop">
+          <div class="node actor">
+            <div><strong>Actor</strong><span>根据状态 s 产生动作 a 或动作概率 π(a|s)</span></div>
+          </div>
+          <div class="node">
+            <div><strong>Environment</strong><span>执行动作，返回奖励 r 和下一个状态 s'</span></div>
+          </div>
+          <div class="node critic">
+            <div><strong>Critic</strong><span>估计 V(s) 或 Q(s,a)，计算优势 Advantage</span></div>
+          </div>
+          <div class="node">
+            <div><strong>Update</strong><span>Critic 降低误差，Actor 朝高优势动作移动</span></div>
+          </div>
+        </div>
+        <div class="arrow a1">动作</div>
+        <div class="arrow a2">反馈</div>
+        <div class="arrow a3">评价</div>
+        <div class="arrow a4">改策略</div>
+      </div>
+    </header>
+
+    <section class="band">
+      <h2>先抓住直觉</h2>
+      <div class="grid">
+        <article class="card">
+          <span class="tag actor">Actor</span>
+          <h3>负责“怎么做”</h3>
+          <p>Actor 是策略函数 π。输入状态后，它输出动作或动作概率分布。训练目标是让高回报动作更常被选中，让低回报动作逐渐淡出。</p>
+        </article>
+        <article class="card">
+          <span class="tag critic">Critic</span>
+          <h3>负责“好不好”</h3>
+          <p>Critic 是价值函数 V 或 Q。它不直接控制行为，而是预测当前状态未来能拿到多少总回报，用来给 Actor 提供更稳定的学习信号。</p>
+        </article>
+        <article class="card">
+          <span class="tag bridge">Advantage</span>
+          <h3>负责“比预期好多少”</h3>
+          <p>优势函数 A(s,a) 衡量某个动作相对平均水平的超额收益。优势为正，Actor 增大该动作概率；优势为负，Actor 降低该动作概率。</p>
+        </article>
+      </div>
+    </section>
+
+    <section id="foundation">
+      <h2>强化学习问题先长什么样？</h2>
+      <div class="two-col">
+        <div>
+          <p>Actor-Critic 解决的是序贯决策问题：智能体不是只做一次分类，而是在一串状态里不断行动，每一步都会改变未来能看到什么、能拿到多少奖励。通常我们把这个过程写成马尔可夫决策过程 MDP。</p>
+          <p class="note">马尔可夫性的意思是：只要当前状态 s 描述得足够完整，未来就不需要再依赖更早的历史。真实任务里状态常常不完美，所以还会用 RNN、历史堆叠或 belief state 补信息。</p>
+        </div>
+        <dl class="term-list">
+          <div>
+            <dt>状态 s</dt>
+            <dd>环境当前信息，比如小车位置、速度，机器人传感器读数，或游戏画面特征。</dd>
+          </div>
+          <div>
+            <dt>动作 a</dt>
+            <dd>智能体可选的行为。离散动作像上下左右，连续动作像电机力矩或转向角。</dd>
+          </div>
+          <div>
+            <dt>奖励 r</dt>
+            <dd>环境给出的即时反馈。奖励设计会极大影响训练效果，太稀疏或有漏洞都会让策略学歪。</dd>
+          </div>
+          <div>
+            <dt>折扣因子 γ</dt>
+            <dd>控制未来奖励的重要程度。γ 接近 1 更看重长期收益，γ 小则更短视但训练目标通常更稳定。</dd>
+          </div>
+        </dl>
+      </div>
+    </section>
+
+    <section>
+      <h2>一次训练循环</h2>
+      <ol class="steps">
+        <li>
+          <div>
+            <h3>观察状态</h3>
+            <p>智能体拿到环境状态 s，比如机器人关节角、游戏画面、库存水平，或任何可用于决策的信息。</p>
+          </div>
+        </li>
+        <li>
+          <div>
+            <h3>Actor 采样动作</h3>
+            <p>策略 π(a|s) 产生动作。训练时通常保留随机性，用探索避免太早陷入一个看似不错但并不最优的行为。</p>
+          </div>
+        </li>
+        <li>
+          <div>
+            <h3>环境返回奖励</h3>
+            <p>执行动作后得到 r 和 s'。奖励可以很短视，但价值函数会把它和未来收益合起来看。</p>
+          </div>
+        </li>
+        <li>
+          <div>
+            <h3>Critic 计算 TD 误差</h3>
+            <p>TD 误差 δ 表示“实际看到的目标”与 Critic 当前预测之间的差距。它既训练 Critic，也常被当作 Actor 的优势估计。</p>
+          </div>
+        </li>
+        <li>
+          <div>
+            <h3>同时更新两套网络</h3>
+            <p>Critic 学会更准地估值；Actor 用 Critic 给出的信号调整策略。一个管判断，一个管行动，闭环就转起来了。</p>
+          </div>
+        </li>
+      </ol>
+    </section>
+
+    <section id="gradient" class="band">
+      <h2>从 Policy Gradient 到 Actor-Critic</h2>
+      <div class="two-col">
+        <div>
+          <p>策略梯度的目标是最大化期望回报：让参数 θ 控制的策略 πθ 在采样轨迹后拿到更高总奖励。最朴素的 REINFORCE 会用整条轨迹的回报 Gt 去乘上动作对数概率的梯度。</p>
+          <div class="formula">
+            <span class="eq"><span class="label">目标</span>J(θ) = E[Σ<sub>t</sub> γ<sup>t</sup> r<sub>t</sub>]</span>
+            <span class="eq"><span class="label">策略梯度</span>∇J(θ) ≈ Σ<sub>t</sub> ∇<sub>θ</sub> log π<sub>θ</sub>(a<sub>t</sub>|s<sub>t</sub>) · G<sub>t</sub></span>
+          </div>
+          <p class="note">问题在于 Gt 方差很大：一次运气好可能让错误动作也被奖励，一次运气差也可能惩罚了好动作。训练会像在噪声里听音乐，旋律有，但不清楚。</p>
+        </div>
+        <div class="callout">
+          <strong>Actor-Critic 的改造</strong>
+          <p>它引入 Critic 学一个 baseline：当前状态本来就大概值多少。Actor 更新时不再问“这次总回报是多少”，而是问“这次动作比当前状态的平均预期好多少”。</p>
+          <div class="formula">
+            <span class="eq"><span class="label">优势定义</span>A(s,a) = Q(s,a) - V(s)</span>
+            <span class="eq"><span class="label">常用近似</span>A(s<sub>t</sub>,a<sub>t</sub>) ≈ δ<sub>t</sub></span>
+          </div>
+          <p>这就是为什么 Critic 能降低方差：它把“环境本来就容易/困难”的部分扣掉，让 Actor 更关注动作本身的贡献。</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="math" class="band">
+      <h2>核心公式</h2>
+      <p>最常见的 Actor-Critic 会用 Critic 的价值估计来降低策略梯度的方差。下面是基于状态价值 V(s) 的版本。</p>
+      <div class="formula">
+        <span class="eq"><span class="label">TD 目标</span>y = r + γ V(s')</span>
+        <span class="eq"><span class="label">TD 误差</span>δ = y - V(s)</span>
+        <span class="eq"><span class="label">Critic 损失</span>L<sub>c</sub> = <span class="frac"><span>1</span><span>2</span></span> · δ<sup>2</sup></span>
+        <span class="eq"><span class="label">Actor 目标</span>maximize log π(a|s) · δ</span>
+        <span class="eq"><span class="label">Actor 更新</span>θ ← θ + α<sub>actor</sub> · ∇<sub>θ</sub> log π<sub>θ</sub>(a|s) · δ</span>
+        <span class="eq"><span class="label">Critic 更新</span>w ← w - α<sub>critic</sub> · ∇<sub>w</sub> L<sub>c</sub></span>
+      </div>
+      <p class="note">关键点：如果 δ &gt; 0，说明结果比 Critic 预期好，Actor 会更偏向刚才的动作；如果 δ &lt; 0，说明结果低于预期，Actor 会减少这个动作的概率。</p>
+      <div class="mini-example">
+        <div>
+          <b>例子 1：结果更好</b>
+          <p>Critic 预测 V(s)=0.4，实际目标 y=0.7，则 δ=+0.3。Actor 会强化刚才的动作。</p>
+        </div>
+        <div>
+          <b>例子 2：结果更差</b>
+          <p>Critic 预测 V(s)=0.8，实际目标 y=0.5，则 δ=-0.3。Actor 会减少刚才动作的概率。</p>
+        </div>
+        <div>
+          <b>例子 3：预期准确</b>
+          <p>如果 y≈V(s)，δ 接近 0，说明动作没有明显超预期，Actor 更新幅度会很小。</p>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <h2>伪代码：把算法跑起来</h2>
+      <div class="code-block">初始化 Actor 参数 θ，Critic 参数 w
+for episode = 1 ... N:
+    重置环境，得到初始状态 s
+    while episode 未结束:
+        用 Actor 采样动作 a ~ πθ(a|s)
+        执行动作，得到 r, s', done
+
+        # Critic: 估计这一步的 TD 目标和误差
+        if done:
+            y = r
+        else:
+            y = r + γ Vw(s')
+        δ = y - Vw(s)
+
+        # 更新 Critic，让 Vw(s) 更接近 y
+        minimize 1/2 * δ²
+
+        # 更新 Actor，让高优势动作概率上升
+        maximize log πθ(a|s) * stop_gradient(δ)
+
+        s = s'</div>
+      <p class="note">实现时通常会对 δ 或 advantage 做 detach / stop_gradient，因为 Actor 更新只希望把 δ 当作评价信号，不希望 Actor 的损失反向穿过 Critic 的网络参数。</p>
+    </section>
+
+    <section id="implementation" class="band">
+      <h2>完整代码实现：一步一步写 Actor-Critic</h2>
+      <p>下面是一份最小但完整的 PyTorch 风格实现，适合离散动作环境，比如 CartPole。它展示的是 online one-step Actor-Critic：每和环境交互一步，就更新一次 Actor 和 Critic。</p>
+      <div class="code-block">import gymnasium as gym
+import torch
+import torch.nn as nn
+import torch.optim as optim
+from torch.distributions import Categorical
+
+
+class Actor(nn.Module):
+    def __init__(self, state_dim, action_dim):
+        super().__init__()
+        self.net = nn.Sequential(
+            nn.Linear(state_dim, 128),
+            nn.ReLU(),
+            nn.Linear(128, action_dim)
+        )
+
+    def forward(self, state):
+        logits = self.net(state)
+        return Categorical(logits=logits)
+
+
+class Critic(nn.Module):
+    def __init__(self, state_dim):
+        super().__init__()
+        self.net = nn.Sequential(
+            nn.Linear(state_dim, 128),
+            nn.ReLU(),
+            nn.Linear(128, 1)
+        )
+
+    def forward(self, state):
+        return self.net(state).squeeze(-1)
+
+
+env = gym.make("CartPole-v1")
+state_dim = env.observation_space.shape[0]
+action_dim = env.action_space.n
+
+actor = Actor(state_dim, action_dim)
+critic = Critic(state_dim)
+actor_optimizer = optim.Adam(actor.parameters(), lr=1e-3)
+critic_optimizer = optim.Adam(critic.parameters(), lr=1e-3)
+
+gamma = 0.99
+episodes = 600
+
+for episode in range(episodes):
+    state, _ = env.reset()
+    done = False
+    episode_reward = 0
+
+    while not done:
+        state_tensor = torch.tensor(state, dtype=torch.float32).unsqueeze(0)
+
+        # 1. Actor 根据当前状态输出动作分布，并采样动作
+        dist = actor(state_tensor)
+        action = dist.sample()
+        log_prob = dist.log_prob(action)
+
+        # 2. 环境执行动作，返回奖励和下一个状态
+        next_state, reward, terminated, truncated, _ = env.step(action.item())
+        done = terminated or truncated
+        episode_reward += reward
+
+        reward_tensor = torch.tensor([reward], dtype=torch.float32)
+        next_state_tensor = torch.tensor(next_state, dtype=torch.float32).unsqueeze(0)
+        done_tensor = torch.tensor([done], dtype=torch.float32)
+
+        # 3. Critic 估计 V(s) 和 V(s')
+        value = critic(state_tensor)
+        with torch.no_grad():
+            next_value = critic(next_state_tensor)
+            td_target = reward_tensor + gamma * next_value * (1 - done_tensor)
+
+        # 4. TD error 既是 Critic 的学习目标，也是 Actor 的 advantage 估计
+        td_error = td_target - value
+
+        # 5. 更新 Critic：让 V(s) 靠近 td_target
+        critic_loss = td_error.pow(2).mean()
+        critic_optimizer.zero_grad()
+        critic_loss.backward()
+        critic_optimizer.step()
+
+        # 6. 更新 Actor：正 advantage 增大动作概率，负 advantage 减小动作概率
+        actor_loss = -(log_prob * td_error.detach()).mean()
+        actor_optimizer.zero_grad()
+        actor_loss.backward()
+        actor_optimizer.step()
+
+        state = next_state
+
+    if episode % 20 == 0:
+        print(f"episode={episode}, reward={episode_reward}")</div>
+
+      <div class="grid" style="margin-top: 18px;">
+        <article class="card">
+          <span class="tag actor">Actor 类</span>
+          <h3>输出动作分布</h3>
+          <p>Actor 不是直接输出“选哪个动作”，而是输出每个动作的 logits，再交给 Categorical 形成概率分布。这样既能采样探索，也能计算 log_prob 用于策略梯度。</p>
+        </article>
+        <article class="card">
+          <span class="tag critic">Critic 类</span>
+          <h3>输出状态价值</h3>
+          <p>Critic 输入状态 s，输出一个标量 V(s)。这个值表示“从当前状态开始，未来折扣回报大概是多少”。它越准，Actor 得到的 advantage 信号越可靠。</p>
+        </article>
+        <article class="card">
+          <span class="tag bridge">两个优化器</span>
+          <h3>分开更新更清楚</h3>
+          <p>Actor 和 Critic 各有自己的 optimizer。这样可以分别调学习率，也能避免两个网络的梯度混在一起，代码结构更容易 debug。</p>
+        </article>
+      </div>
+
+      <div class="table-wrap" style="margin-top: 18px;">
+        <table>
+          <thead>
+            <tr>
+              <th>代码位置</th>
+              <th>在算法里对应什么</th>
+              <th>为什么这样写</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>dist = actor(state_tensor)</code><br><code>action = dist.sample()</code></td>
+              <td>Actor 根据 π(a|s) 选择动作。</td>
+              <td>训练时需要探索，所以从概率分布采样，而不是永远选最大概率动作。</td>
+            </tr>
+            <tr>
+              <td><code>log_prob = dist.log_prob(action)</code></td>
+              <td>策略梯度里的 log π(a|s)。</td>
+              <td>Actor loss 会用它乘 advantage：好动作提高概率，坏动作降低概率。</td>
+            </tr>
+            <tr>
+              <td><code>td_target = r + γV(s')</code></td>
+              <td>Critic 的 bootstrap 目标。</td>
+              <td>不用等整局结束，每一步都能估计“即时奖励 + 下一状态价值”。</td>
+            </tr>
+            <tr>
+              <td><code>td_error = td_target - value</code></td>
+              <td>TD error，也是一阶 advantage 估计。</td>
+              <td>它告诉 Actor：这次动作的结果比预期好还是差。</td>
+            </tr>
+            <tr>
+              <td><code>critic_loss = td_error.pow(2).mean()</code></td>
+              <td>训练 Critic。</td>
+              <td>让 V(s) 逼近 td_target，本质是一个回归问题。</td>
+            </tr>
+            <tr>
+              <td><code>actor_loss = -(log_prob * td_error.detach()).mean()</code></td>
+              <td>训练 Actor。</td>
+              <td>前面的负号是因为 PyTorch optimizer 默认最小化 loss，而策略目标是最大化 log_prob * advantage。</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <p class="note"><strong>最重要的一行：</strong><code>td_error.detach()</code>。Actor 更新时只把 TD error 当作“评分”，不让 Actor loss 的梯度反向穿过 Critic。否则 Actor 的优化会顺手改变 Critic 相关计算图，学习目标会变得混乱。</p>
+    </section>
+
+    <section id="demo">
+      <h2>小演示：Actor 朝目标走，Critic 估计价值</h2>
+      <div class="demo">
+        <aside class="card controls">
+          <label>
+            Episode
+            <input id="episode" type="range" min="0" max="100" value="28">
+          </label>
+          <label>
+            探索强度
+            <input id="explore" type="range" min="0" max="100" value="35">
+          </label>
+          <button class="button" id="advance" type="button">训练一步</button>
+          <button class="button secondary" id="reset" type="button">重置</button>
+          <div class="readout">
+            <div class="metric">
+              <b id="policyText">64%</b>
+              <span>向右动作概率</span>
+            </div>
+            <div class="metric">
+              <b id="valueText">0.47</b>
+              <span>Critic 价值估计</span>
+            </div>
+          </div>
+        </aside>
+
+        <div class="world">
+          <div class="track">
+            <div class="agent" id="agent">A</div>
+            <div class="goal">R</div>
+          </div>
+          <div class="bars">
+            <div class="bar-line">
+              <span>Actor π</span>
+              <div class="bar"><i id="policyBar"></i></div>
+              <span id="policySmall">64%</span>
+            </div>
+            <div class="bar-line">
+              <span>Critic V</span>
+              <div class="bar value"><i id="valueBar"></i></div>
+              <span id="valueSmall">0.47</span>
+            </div>
+            <div class="bar-line">
+              <span>Advantage</span>
+              <div class="bar"><i id="advBar"></i></div>
+              <span id="advSmall">+0.21</span>
+            </div>
+          </div>
+          <p class="note" id="explain">现在 Actor 已经有点相信“向右走”更好；Critic 还在学习目标附近的长期收益，所以优势仍然为正。</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="band">
+      <h2>为什么不用纯 Policy Gradient？</h2>
+      <div class="compare">
+        <article class="card">
+          <h3>纯策略梯度</h3>
+          <p>直接用完整回报 G 来更新策略，概念简单，但回报波动大，尤其在奖励稀疏或轨迹很长时，训练会很吵。</p>
+        </article>
+        <article class="card">
+          <h3>Actor-Critic</h3>
+          <p>用 Critic 提供 baseline 或 advantage，通常方差更低、学习更快，也更容易扩展到连续动作和大规模神经网络。</p>
+        </article>
+      </div>
+    </section>
+
+    <section>
+      <h2>Bias 与 Variance：它真正权衡的东西</h2>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>方法</th>
+              <th>学习信号</th>
+              <th>优点</th>
+              <th>缺点</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Monte Carlo Policy Gradient</td>
+              <td>完整轨迹回报 Gt</td>
+              <td>估计无偏，理论直观，不需要价值函数 bootstrap。</td>
+              <td>方差高，要等 episode 结束，长任务和稀疏奖励里训练慢。</td>
+            </tr>
+            <tr>
+              <td>TD Actor-Critic</td>
+              <td>r + γV(s') - V(s)</td>
+              <td>可以每一步更新，方差较低，数据效率通常更好。</td>
+              <td>Critic 如果估错会引入偏差，训练稳定性依赖价值函数质量。</td>
+            </tr>
+            <tr>
+              <td>GAE Actor-Critic</td>
+              <td>多步 TD 误差加权和</td>
+              <td>用 λ 在偏差和方差之间调节，是 PPO 等算法里很常见的选择。</td>
+              <td>多一个 λ 超参数，需要批量轨迹和更细致的实现。</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section>
+      <h2>常见变体</h2>
+      <div class="grid">
+        <article class="card">
+          <h3>A2C / A3C</h3>
+          <p>Advantage Actor-Critic。A3C 用多个异步 worker 探索环境，A2C 是同步版本，工程上更容易复现。</p>
+        </article>
+        <article class="card">
+          <h3>DDPG / TD3</h3>
+          <p>用于连续动作控制。Actor 输出确定性动作，Critic 评价 Q(s,a)。TD3 通过双 Critic 和延迟更新提高稳定性。</p>
+        </article>
+        <article class="card">
+          <h3>PPO / SAC</h3>
+          <p>PPO 用裁剪目标限制策略更新幅度；SAC 最大化奖励和策略熵，鼓励持续探索，实践中非常常用。</p>
+        </article>
+      </div>
+    </section>
+
+    <section id="ppo" class="band">
+      <h2>PPO：Actor-Critic 的下一步</h2>
+      <div class="two-col">
+        <div>
+          <p>PPO 全名 Proximal Policy Optimization。它仍然是 Actor-Critic：Actor 负责策略 π(a|s)，Critic 负责价值 V(s)。它真正新增的核心思想是：策略可以更新，但不能一次改得太离谱。</p>
+          <p class="note">普通 Actor-Critic 有时会因为一次梯度更新过大，把还不错的策略突然改坏。PPO 用 clipped objective 限制新策略和旧策略的差距，让训练更稳。</p>
+        </div>
+        <div class="callout">
+          <strong>一句话理解 PPO</strong>
+          <p>先用旧策略收集一批数据，再用这批数据训练新策略；但如果新策略让某个动作概率变化太大，就把收益裁掉，不再鼓励继续往那个方向猛冲。</p>
+        </div>
+      </div>
+
+      <div class="formula">
+        <span class="eq"><span class="label">概率比率</span>r<sub>t</sub>(θ) = <span class="frac"><span>π<sub>θ</sub>(a<sub>t</sub>|s<sub>t</sub>)</span><span>π<sub>old</sub>(a<sub>t</sub>|s<sub>t</sub>)</span></span></span>
+        <span class="eq"><span class="label">PPO-Clip</span>L = E[min(r<sub>t</sub>A<sub>t</sub>, clip(r<sub>t</sub>, 1-ε, 1+ε)A<sub>t</sub>)]</span>
+        <span class="eq"><span class="label">总损失</span>loss = policy_loss + c<sub>1</sub> · value_loss - c<sub>2</sub> · entropy</span>
+      </div>
+
+      <div class="grid" style="margin-top: 18px;">
+        <article class="card">
+          <span class="tag actor">ratio</span>
+          <h3>新旧策略差多少</h3>
+          <p>ratio 大于 1，说明新策略比旧策略更喜欢这个动作；ratio 小于 1，说明新策略降低了这个动作概率。PPO 直接盯着这个比例。</p>
+        </article>
+        <article class="card">
+          <span class="tag critic">clip</span>
+          <h3>限制更新幅度</h3>
+          <p>如果 ε=0.2，ratio 通常被限制在 0.8 到 1.2 的有效区间。超出区间后，目标函数不再继续奖励这种过猛变化。</p>
+        </article>
+        <article class="card">
+          <span class="tag bridge">entropy</span>
+          <h3>保持探索</h3>
+          <p>entropy 越高，动作分布越不确定。PPO 常在 loss 里加入 entropy bonus，防止策略太早变成“永远选同一个动作”。</p>
+        </article>
+      </div>
+    </section>
+
+    <section>
+      <h2>PPO 为什么要 clip？</h2>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Advantage</th>
+              <th>ratio 变化</th>
+              <th>PPO 的态度</th>
+              <th>直觉</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>A_t &gt; 0</td>
+              <td>ratio 从 1 涨到 1.5</td>
+              <td>最多按 1+ε 奖励，不鼓励继续暴涨。</td>
+              <td>这个动作确实好，但别因为一批数据就把概率推太猛。</td>
+            </tr>
+            <tr>
+              <td>A_t &lt; 0</td>
+              <td>ratio 从 1 降到 0.4</td>
+              <td>最多按 1-ε 惩罚，不鼓励继续暴跌。</td>
+              <td>这个动作这次不好，但也别立刻把它彻底抹掉，可能只是采样噪声。</td>
+            </tr>
+            <tr>
+              <td>A_t ≈ 0</td>
+              <td>ratio 怎么变都影响小</td>
+              <td>更新信号很弱。</td>
+              <td>动作没有明显好坏，没必要大改策略。</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="band">
+      <h2>GAE：PPO 里常用的 Advantage 算法</h2>
+      <p>PPO 通常不是只用一步 TD error，而是用 GAE，也就是 Generalized Advantage Estimation。它把多个时间步的 TD error 按 λ 衰减相加，用来在偏差和方差之间折中。</p>
+      <div class="formula">
+        <span class="eq"><span class="label">TD 误差</span>δ<sub>t</sub> = r<sub>t</sub> + γV(s<sub>t+1</sub>) - V(s<sub>t</sub>)</span>
+        <span class="eq"><span class="label">GAE</span>A<sub>t</sub><sup>GAE</sup> = δ<sub>t</sub> + γλδ<sub>t+1</sub> + (γλ)<sup>2</sup>δ<sub>t+2</sub> + ...</span>
+        <span class="eq"><span class="label">Return</span>return<sub>t</sub> = A<sub>t</sub> + V(s<sub>t</sub>)</span>
+      </div>
+      <div class="compare" style="margin-top: 18px;">
+        <article class="card">
+          <h3>λ 小</h3>
+          <p>更接近一步 TD，方差低、偏差高，训练信号更平滑，但可能因为 Critic 估错而带来偏差。</p>
+        </article>
+        <article class="card">
+          <h3>λ 大</h3>
+          <p>更接近完整 Monte Carlo 回报，偏差低、方差高。实践中 PPO 常用 γ=0.99、λ=0.95 作为起点。</p>
+        </article>
+      </div>
+    </section>
+
+    <section>
+      <h2>PPO 训练流程</h2>
+      <ol class="steps">
+        <li>
+          <div>
+            <h3>用当前策略收集 rollout</h3>
+            <p>保存状态、动作、奖励、done、动作的旧 log_prob、Critic 的 V(s)。这些旧 log_prob 后面用来算 ratio。</p>
+          </div>
+        </li>
+        <li>
+          <div>
+            <h3>计算 advantage 和 return</h3>
+            <p>用 GAE 得到 A_t，再用 return_t = A_t + V(s_t) 作为 Critic 的监督目标。</p>
+          </div>
+        </li>
+        <li>
+          <div>
+            <h3>多轮 mini-batch 更新</h3>
+            <p>同一批 rollout 数据会被重复训练几个 epoch。因为有 ratio 和 clip，PPO 可以比普通 on-policy AC 更安全地复用数据。</p>
+          </div>
+        </li>
+        <li>
+          <div>
+            <h3>合成总损失</h3>
+            <p>Actor 用 clipped policy loss，Critic 用 value loss，策略分布再加 entropy bonus 鼓励探索。</p>
+          </div>
+        </li>
+      </ol>
+    </section>
+
+    <section class="band">
+      <h2>PPO 完整计算流程</h2>
+      <p>把 PPO 想成两大阶段：先用旧策略采样一批 rollout，再用这批固定数据更新多轮新策略。关键是：采样时保存的 <code>old_log_prob</code>、<code>value</code>、<code>reward</code> 会在更新阶段重新参与计算。</p>
+
+      <ol class="steps">
+        <li>
+          <div>
+            <h3>初始化策略和缓存</h3>
+            <p>Actor-Critic 接收状态维度和动作维度。以 IsaacLab Cartpole 为例，<code>obs</code> 通常是 <code>[1024, 4]</code>，<code>actions</code> 是 <code>[1024, 1]</code>。RolloutBuffer 会预分配 <code>[num_steps, num_envs, ...]</code> 的张量。</p>
+            <div class="formula">
+              <span class="eq"><span class="label">obs buffer</span>[16, 1024, 4]</span>
+              <span class="eq"><span class="label">action buffer</span>[16, 1024, 1]</span>
+              <span class="eq"><span class="label">reward buffer</span>[16, 1024]</span>
+              <span class="eq"><span class="label">value buffer</span>[16, 1024]</span>
+              <span class="eq"><span class="label">log_prob buffer</span>[16, 1024]</span>
+            </div>
+          </div>
+        </li>
+        <li>
+          <div>
+            <h3>Actor 根据当前状态采样动作</h3>
+            <p>连续动作 PPO 常用高斯策略。Actor 输出动作均值 <code>mean</code>，同时学习一个 <code>log_std</code>，组合成 <code>Normal(mean, std)</code>。训练时从分布采样动作，并保存该动作在旧策略下的 log 概率。</p>
+            <div class="formula">
+              <span class="eq"><span class="label">动作均值</span>mean<sub>t</sub> = Actor(s<sub>t</sub>)</span>
+              <span class="eq"><span class="label">动作方差</span>std = exp(log_std)</span>
+              <span class="eq"><span class="label">采样动作</span>a<sub>t</sub> ~ Normal(mean<sub>t</sub>, std)</span>
+              <span class="eq"><span class="label">旧概率</span>old_log_prob<sub>t</sub> = log π<sub>old</sub>(a<sub>t</sub>|s<sub>t</sub>)</span>
+            </div>
+            <p class="note">为什么要保存 old_log_prob？因为 PPO 更新时策略参数已经变了，必须知道“采样这批数据时旧策略有多喜欢这个动作”，才能算新旧策略概率比。</p>
+          </div>
+        </li>
+        <li>
+          <div>
+            <h3>Critic 同时估计当前状态价值</h3>
+            <p>Critic 输入同一个状态 <code>s_t</code>，输出 <code>V(s_t)</code>。这个 value 会被存进 buffer，后面计算 TD error、GAE、value clipping 都要用。</p>
+            <div class="formula">
+              <span class="eq"><span class="label">价值估计</span>value<sub>t</sub> = V(s<sub>t</sub>)</span>
+              <span class="eq"><span class="label">Cartpole</span>values.shape = [1024]</span>
+            </div>
+          </div>
+        </li>
+        <li>
+          <div>
+            <h3>环境执行动作并返回反馈</h3>
+            <p>把动作送给 IsaacLab 环境后，会得到下一个状态、奖励和结束标记。每个并行环境各有一个 reward 和 done。</p>
+            <div class="formula">
+              <span class="eq"><span class="label">环境一步</span>s<sub>t+1</sub>, r<sub>t</sub>, done<sub>t</sub> = env.step(a<sub>t</sub>)</span>
+              <span class="eq"><span class="label">奖励形状</span>rewards.shape = [1024]</span>
+              <span class="eq"><span class="label">done 形状</span>dones.shape = [1024]</span>
+            </div>
+          </div>
+        </li>
+        <li>
+          <div>
+            <h3>写入 RolloutBuffer</h3>
+            <p>每一步都把 <code>obs, action, old_log_prob, reward, done, value</code> 保存下来。采满 <code>num_steps</code> 后，一批 on-policy 数据就准备好了。</p>
+            <div class="formula">
+              <span class="eq"><span class="label">保存数据</span>buffer[t] = {s<sub>t</sub>, a<sub>t</sub>, old_log_prob<sub>t</sub>, r<sub>t</sub>, done<sub>t</sub>, V(s<sub>t</sub>)}</span>
+              <span class="eq"><span class="label">采样量</span>num_steps × num_envs = 16 × 1024 = 16384</span>
+            </div>
+          </div>
+        </li>
+        <li>
+          <div>
+            <h3>用最后一个状态 bootstrap</h3>
+            <p>rollout 截断在第 16 步时，episode 不一定结束，所以需要 Critic 估计最后状态的价值 <code>V(s_{T})</code>，作为 GAE 反向递推的起点。</p>
+            <div class="formula">
+              <span class="eq"><span class="label">最后价值</span>last_value = V(s<sub>T</sub>)</span>
+              <span class="eq"><span class="label">形状</span>last_value.shape = [1024]</span>
+            </div>
+          </div>
+        </li>
+        <li>
+          <div>
+            <h3>反向计算 TD error 和 GAE</h3>
+            <p>从最后一步往前算。每一步先算 TD error，再用它累积 GAE advantage。这里的 <code>δ_t</code> 不是 state value，而是“TD 预测误差”。</p>
+            <div class="formula">
+              <span class="eq"><span class="label">TD 误差</span>δ<sub>t</sub> = r<sub>t</sub> + γ · V(s<sub>t+1</sub>) · (1 - done<sub>t</sub>) - V(s<sub>t</sub>)</span>
+              <span class="eq"><span class="label">GAE 递推</span>A<sub>t</sub> = δ<sub>t</sub> + γλ · (1 - done<sub>t</sub>) · A<sub>t+1</sub></span>
+              <span class="eq"><span class="label">Return</span>return<sub>t</sub> = A<sub>t</sub> + V(s<sub>t</sub>)</span>
+            </div>
+            <p class="note">直觉：<code>A_t &gt; 0</code> 表示这个动作比 Critic 预期更好；<code>A_t &lt; 0</code> 表示比预期差。Actor 真正吃的是 advantage，不是 reward 原值。</p>
+          </div>
+        </li>
+        <li>
+          <div>
+            <h3>归一化 Advantage 并 flatten batch</h3>
+            <p>GAE 得到的 advantage 会被标准化成均值约 0、标准差约 1。然后把时间维和环境维合并，变成 PPO 更新用的大 batch。</p>
+            <div class="formula">
+              <span class="eq"><span class="label">归一化</span>A = <span class="frac"><span>A - mean(A)</span><span>std(A) + 1e-8</span></span></span>
+              <span class="eq"><span class="label">obs</span>[16, 1024, 4] → [16384, 4]</span>
+              <span class="eq"><span class="label">actions</span>[16, 1024, 1] → [16384, 1]</span>
+              <span class="eq"><span class="label">returns</span>[16, 1024] → [16384]</span>
+              <span class="eq"><span class="label">advantages</span>[16, 1024] → [16384]</span>
+            </div>
+          </div>
+        </li>
+        <li>
+          <div>
+            <h3>切 mini-batch，重新评估动作</h3>
+            <p>更新阶段不会重新采样动作，而是拿 rollout 里旧动作 <code>a_t</code>，问新策略：现在你对这个旧动作的 log 概率是多少？</p>
+            <div class="formula">
+              <span class="eq"><span class="label">重新评估</span>new_log_prob<sub>t</sub>, entropy<sub>t</sub>, new_value<sub>t</sub> = evaluate(s<sub>t</sub>, a<sub>t</sub>)</span>
+              <span class="eq"><span class="label">mini-batch</span>16384 / 4 = 4096</span>
+            </div>
+          </div>
+        </li>
+        <li>
+          <div>
+            <h3>计算新旧策略概率比 ratio</h3>
+            <p>log 概率相减再 exp，就等价于概率相除。ratio 是 PPO 的核心变量。</p>
+            <div class="formula">
+              <span class="eq"><span class="label">log 形式</span>ratio<sub>t</sub> = exp(new_log_prob<sub>t</sub> - old_log_prob<sub>t</sub>)</span>
+              <span class="eq"><span class="label">概率形式</span>ratio<sub>t</sub> = <span class="frac"><span>π<sub>new</sub>(a<sub>t</sub>|s<sub>t</sub>)</span><span>π<sub>old</sub>(a<sub>t</sub>|s<sub>t</sub>)</span></span></span>
+            </div>
+            <p class="note">ratio = 1 表示新旧策略对这个动作态度一样；ratio = 1.2 表示新策略把这个动作概率提高了 20%；ratio = 0.8 表示降低了 20%。</p>
+          </div>
+        </li>
+        <li>
+          <div>
+            <h3>计算 PPO clipped policy loss</h3>
+            <p>普通策略梯度会直接最大化 <code>ratio * advantage</code>。PPO 多做一步裁剪：如果新策略变化太大，就用裁剪后的 ratio，避免一次更新把策略推爆。</p>
+            <div class="formula">
+              <span class="eq"><span class="label">未裁剪</span>surr1 = ratio<sub>t</sub> · A<sub>t</sub></span>
+              <span class="eq"><span class="label">裁剪后</span>surr2 = clip(ratio<sub>t</sub>, 1 - ε, 1 + ε) · A<sub>t</sub></span>
+              <span class="eq"><span class="label">Actor loss</span>policy_loss = -mean(min(surr1, surr2))</span>
+            </div>
+          </div>
+        </li>
+        <li>
+          <div>
+            <h3>计算 Critic value loss</h3>
+            <p>Critic 的目标是让新 value 逼近前面算好的 <code>return_t</code>。工程里常加 clipped value loss，避免 Critic 一步改得太猛。</p>
+            <div class="formula">
+              <span class="eq"><span class="label">未裁剪</span>unclipped = (V<sub>new</sub>(s<sub>t</sub>) - return<sub>t</sub>)<sup>2</sup></span>
+              <span class="eq"><span class="label">裁剪 value</span>V<sub>clip</sub> = V<sub>old</sub>(s<sub>t</sub>) + clip(V<sub>new</sub>(s<sub>t</sub>) - V<sub>old</sub>(s<sub>t</sub>), -ε, ε)</span>
+              <span class="eq"><span class="label">裁剪损失</span>clipped = (V<sub>clip</sub> - return<sub>t</sub>)<sup>2</sup></span>
+              <span class="eq"><span class="label">Critic loss</span>value_loss = 0.5 · mean(max(unclipped, clipped))</span>
+            </div>
+          </div>
+        </li>
+        <li>
+          <div>
+            <h3>加上 entropy，合成总损失</h3>
+            <p>entropy 越大，动作分布越分散，探索越强。因为优化器默认最小化 loss，所以 entropy 项前面是负号。</p>
+            <div class="formula">
+              <span class="eq"><span class="label">总损失</span>total_loss = policy_loss + value_coef · value_loss - entropy_coef · entropy</span>
+            </div>
+          </div>
+        </li>
+        <li>
+          <div>
+            <h3>反向传播、梯度裁剪、更新参数</h3>
+            <p>Actor、Critic 和 <code>log_std</code> 一起参与反向传播。更新后会把 <code>log_std</code> clamp 到合理范围，避免探索噪声无限变大或变成 0。</p>
+            <div class="formula">
+              <span class="eq"><span class="label">清梯度</span>optimizer.zero_grad()</span>
+              <span class="eq"><span class="label">反传</span>total_loss.backward()</span>
+              <span class="eq"><span class="label">裁剪梯度</span>clip_grad_norm(parameters, max_grad_norm)</span>
+              <span class="eq"><span class="label">更新</span>optimizer.step()</span>
+              <span class="eq"><span class="label">限制噪声</span>log_std = clamp(log_std, min_log_std, max_log_std)</span>
+            </div>
+          </div>
+        </li>
+        <li>
+          <div>
+            <h3>记录诊断指标</h3>
+            <p>PPO 训练不要只看 reward。还要看 KL、clip fraction、entropy、action std、value loss 和 explained variance。它们能告诉你策略更新是不是太猛，Critic 有没有学好。</p>
+            <div class="formula">
+              <span class="eq"><span class="label">近似 KL</span>approx_kl = mean((ratio - 1) - log_ratio)</span>
+              <span class="eq"><span class="label">裁剪比例</span>clip_fraction = mean(abs(ratio - 1) &gt; ε)</span>
+              <span class="eq"><span class="label">解释方差</span>explained_variance = 1 - <span class="frac"><span>Var(return - value)</span><span>Var(return)</span></span></span>
+            </div>
+          </div>
+        </li>
+      </ol>
+
+      <div class="table-wrap" style="margin-top: 18px;">
+        <table>
+          <thead>
+            <tr>
+              <th>变量</th>
+              <th>来源</th>
+              <th>用途</th>
+              <th>Cartpole 示例 shape</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>obs</code></td>
+              <td>环境返回的 <code>obs_dict["policy"]</code></td>
+              <td>Actor 和 Critic 的输入。</td>
+              <td><code>[1024, 4]</code></td>
+            </tr>
+            <tr>
+              <td><code>actions</code></td>
+              <td>Actor 高斯分布采样。</td>
+              <td>送进环境，也在 PPO update 中重新计算 log_prob。</td>
+              <td><code>[1024, 1]</code></td>
+            </tr>
+            <tr>
+              <td><code>old_log_probs</code></td>
+              <td>采样时的旧策略。</td>
+              <td>计算 <code>ratio = exp(new - old)</code>。</td>
+              <td><code>[1024]</code></td>
+            </tr>
+            <tr>
+              <td><code>values</code></td>
+              <td>采样时 Critic 输出的 <code>V_old(s)</code>。</td>
+              <td>计算 GAE、return，也用于 clipped value loss。</td>
+              <td><code>[1024]</code></td>
+            </tr>
+            <tr>
+              <td><code>advantages</code></td>
+              <td>由 TD error 反向递推得到。</td>
+              <td>决定 Actor 应该强化还是削弱动作概率。</td>
+              <td>flatten 后 <code>[16384]</code></td>
+            </tr>
+            <tr>
+              <td><code>returns</code></td>
+              <td><code>advantages + values</code></td>
+              <td>Critic 的监督学习目标。</td>
+              <td>flatten 后 <code>[16384]</code></td>
+            </tr>
+            <tr>
+              <td><code>entropy</code></td>
+              <td>新策略分布计算。</td>
+              <td>作为探索奖励，防止策略太早确定化。</td>
+              <td>mini-batch 上求均值</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="cartpole-animation">
+      <h2>Cartpole 训练时刻动画</h2>
+      <p>下面这个动画展示一次 PPO rollout 里每个时间步会观察和计算的量：状态 <code>s=[x, x_dot, theta, theta_dot]</code>，动作 <code>a</code>，即时奖励 <code>r</code>，Critic 估计 <code>V(s)</code>，以及后续更新里用到的 TD error、Advantage 和 ratio。</p>
+
+      <div class="cartpole-lab">
+        <div class="cartpole-stage" aria-label="Cartpole training animation">
+          <div class="state-overlay">
+            <div class="state-chip">
+              <b>x</b>
+              <meter id="cpXMeter" min="-1" max="1" value="0"></meter>
+              <span id="cpX">0.000</span>
+            </div>
+            <div class="state-chip">
+              <b>x_dot</b>
+              <meter id="cpXDotMeter" min="-1" max="1" value="0"></meter>
+              <span id="cpXDot">0.000</span>
+            </div>
+            <div class="state-chip">
+              <b>theta</b>
+              <meter id="cpThetaMeter" min="-1" max="1" value="0"></meter>
+              <span id="cpTheta">0.000</span>
+            </div>
+            <div class="state-chip">
+              <b>theta_dot</b>
+              <meter id="cpThetaDotMeter" min="-1" max="1" value="0"></meter>
+              <span id="cpThetaDot">0.000</span>
+            </div>
+          </div>
+          <div class="force-arrow" id="cpForce">a=+1</div>
+          <div class="cartpole-rail"></div>
+          <div class="cartpole-cart" id="cpCart">
+            <div class="cartpole-pole" id="cpPole"></div>
+            <div class="cartpole-pivot"></div>
+          </div>
+        </div>
+
+        <aside class="cartpole-panel">
+          <div class="card">
+            <h3>当前 rollout 步</h3>
+            <div class="timeline">
+              <i id="cpTimeline"></i>
+              <span id="cpStep">t = 0 / 16</span>
+            </div>
+            <p class="note" id="cpNarration">Actor 根据当前状态采样动作，同时保存 old_log_prob 和 V(s)。</p>
+          </div>
+
+          <div class="calc-flow">
+            <div class="calc-row">
+              <b>Actor</b>
+              <span id="cpActor">mean=0.00, std=0.59, old_log_prob=-0.92</span>
+            </div>
+            <div class="calc-row">
+              <b>Env</b>
+              <span id="cpEnv">r=1.00, done=0, next_obs=[...]</span>
+            </div>
+            <div class="calc-row">
+              <b>Critic</b>
+              <span id="cpCritic">V(s)=0.42, V(s_next)=0.46</span>
+            </div>
+            <div class="calc-row">
+              <b>TD</b>
+              <span id="cpTD">delta = r + gamma*V_next - V = 1.03</span>
+            </div>
+            <div class="calc-row">
+              <b>GAE</b>
+              <span id="cpGAE">A_t = delta_t + gamma*lambda*A_next</span>
+            </div>
+            <div class="calc-row">
+              <b>PPO</b>
+              <span id="cpPPO">ratio=1.00, clipped_ratio=1.00, surr=min(...)</span>
+            </div>
+          </div>
+        </aside>
+      </div>
+    </section>
+
+    <section class="band">
+      <h2>PPO 核心代码：最重要的几行</h2>
+      <p>下面不是完整工程版，而是 PPO update 的核心。你只要先看懂这段，PPO 的灵魂就抓住了。</p>
+      <div class="code-block"># batch 里保存了 rollout 时的 old_log_probs、actions、advantages、returns
+dist = actor(states)
+new_log_probs = dist.log_prob(actions)
+entropy = dist.entropy().mean()
+
+values = critic(states)
+
+# 新策略 / 旧策略 的动作概率比
+ratio = torch.exp(new_log_probs - old_log_probs)
+
+# advantage 通常要归一化，让训练更稳定
+advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)
+
+# PPO clipped objective
+surr1 = ratio * advantages
+surr2 = torch.clamp(ratio, 1 - clip_eps, 1 + clip_eps) * advantages
+policy_loss = -torch.min(surr1, surr2).mean()
+
+# Critic 回归 return
+value_loss = 0.5 * (returns - values).pow(2).mean()
+
+# entropy 前面是负号，因为 optimizer 做最小化；我们想最大化 entropy
+loss = policy_loss + value_coef * value_loss - entropy_coef * entropy
+
+optimizer.zero_grad()
+loss.backward()
+torch.nn.utils.clip_grad_norm_(parameters, max_grad_norm)
+optimizer.step()</div>
+
+      <div class="table-wrap" style="margin-top: 18px;">
+        <table>
+          <thead>
+            <tr>
+              <th>代码</th>
+              <th>含义</th>
+              <th>你要盯住什么</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>old_log_probs</code></td>
+              <td>采样 rollout 时旧策略对动作的 log 概率。</td>
+              <td>必须保存下来，不能更新后重新算旧概率。</td>
+            </tr>
+            <tr>
+              <td><code>ratio = exp(new - old)</code></td>
+              <td>等价于 π_new(a|s) / π_old(a|s)。</td>
+              <td>如果 ratio 经常远离 1，说明策略变化太猛。</td>
+            </tr>
+            <tr>
+              <td><code>torch.min(surr1, surr2)</code></td>
+              <td>选择更保守的那个目标。</td>
+              <td>这就是 PPO 稳定的核心。</td>
+            </tr>
+            <tr>
+              <td><code>advantages normalize</code></td>
+              <td>把 advantage 调成均值 0、方差接近 1。</td>
+              <td>几乎是 PPO 实战标配，能明显减少训练抖动。</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section>
+      <h2>PPO 超参数怎么先记</h2>
+      <div class="grid">
+        <article class="card">
+          <h3>clip ε</h3>
+          <p>常用 0.1 到 0.3，最常见起点是 0.2。越小越保守，越大更新越激进。</p>
+        </article>
+        <article class="card">
+          <h3>rollout length</h3>
+          <p>每次收集一批连续交互数据。太短 advantage 噪声大，太长更新不够频繁。并行环境常用较大的 batch。</p>
+        </article>
+        <article class="card">
+          <h3>update epochs</h3>
+          <p>同一批数据训练几轮。太少数据利用不足，太多会过拟合旧 rollout，ratio 也容易偏离 1。</p>
+        </article>
+      </div>
+      <p class="note">学会 PPO 的判断标准：你能解释 old_log_probs 为什么要保存、ratio 为什么是 exp(new-old)、clip 为什么用 min、advantage 为什么要归一化。这四个点通了，PPO 就基本通了。</p>
+    </section>
+
+    <section class="band">
+      <h2>PPO 里用到的技巧总表</h2>
+      <p>这些技巧不是装饰，它们分别在解决 PPO 训练里的不同不稳定来源：采样切片、价值估计、策略更新过猛、探索不足、梯度爆炸和诊断困难。</p>
+
+      <div class="table-wrap" style="margin-top: 18px;">
+        <table>
+          <thead>
+            <tr>
+              <th>技巧</th>
+              <th>它在做什么</th>
+              <th>目的</th>
+              <th>重点观察</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>并行环境采样</td>
+              <td>一次同时跑很多个环境，例如 Cartpole 里 <code>num_envs=1024</code>。</td>
+              <td>快速收集大 batch，降低单条轨迹噪声，让 PPO update 更稳定。</td>
+              <td><code>total_fps</code>、reward 曲线是否平滑。</td>
+            </tr>
+            <tr>
+              <td>RolloutBuffer</td>
+              <td>临时保存 <code>obs/actions/rewards/dones/values/old_log_probs</code>。</td>
+              <td>把“环境交互数据”整理成“神经网络训练 batch”。</td>
+              <td>shape 是否正确，例如 <code>[16,1024,4]</code> flatten 成 <code>[16384,4]</code>。</td>
+            </tr>
+            <tr>
+              <td>保存 old_log_prob</td>
+              <td>采样时记录旧策略对动作的 log 概率。</td>
+              <td>更新时计算新旧策略概率比 <code>ratio</code>，这是 PPO clip 的基础。</td>
+              <td><code>ratio</code> 是否长期远离 1。</td>
+            </tr>
+            <tr>
+              <td>Critic value</td>
+              <td>用 <code>V(s)</code> 估计当前状态未来折扣回报。</td>
+              <td>给 Actor 提供低方差的 advantage 信号，也用于 bootstrap。</td>
+              <td><code>value_loss</code>、<code>explained_variance</code>。</td>
+            </tr>
+            <tr>
+              <td>Bootstrap</td>
+              <td>rollout 截断但 episode 没结束时，用 <code>V(s_T)</code> 补未来价值。</td>
+              <td>避免把固定长度 rollout 的终点误认为 episode 终点，减少 return 低估。</td>
+              <td>最后一步 <code>done=False</code> 时是否使用 <code>last_values</code>。</td>
+            </tr>
+            <tr>
+              <td>TD error</td>
+              <td><code>δ = r + γV(s_next)(1-done) - V(s)</code>。</td>
+              <td>衡量“实际目标”和 Critic 预测的差距，是 GAE 的基本材料。</td>
+              <td>TD error 是否长期过大，通常会反映到 value loss。</td>
+            </tr>
+            <tr>
+              <td>GAE</td>
+              <td>把多步 TD error 按 <code>γλ</code> 衰减累加成 advantage。</td>
+              <td>在低方差的一步 TD 和高方差的 Monte Carlo 之间折中。</td>
+              <td><code>gae_lambda</code>，常用 <code>0.95</code>。</td>
+            </tr>
+            <tr>
+              <td>Advantage 归一化</td>
+              <td>把 advantage 调成均值约 0、标准差约 1。</td>
+              <td>让 Actor loss 尺度稳定，减少不同 batch 之间的更新抖动。</td>
+              <td>训练是否更平滑，policy loss 是否尺度正常。</td>
+            </tr>
+            <tr>
+              <td>Mini-batch 多轮更新</td>
+              <td>同一批 rollout 打乱后切成 mini-batch，重复训练多个 epoch。</td>
+              <td>提高样本利用率，但仍然保持 on-policy 的约束。</td>
+              <td><code>update_epochs</code>、<code>num_mini_batches</code>；太大时 KL 易升高。</td>
+            </tr>
+            <tr>
+              <td>Ratio</td>
+              <td><code>ratio = exp(new_log_prob - old_log_prob)</code>。</td>
+              <td>衡量新策略相对旧策略对同一动作概率改了多少。</td>
+              <td><code>approx_kl</code>、<code>clip_fraction</code>。</td>
+            </tr>
+            <tr>
+              <td>PPO policy clip</td>
+              <td>用 <code>min(ratio*A, clip(ratio)*A)</code> 取保守目标。</td>
+              <td>限制 Actor 一次更新太猛，避免策略突然崩掉。</td>
+              <td><code>clip_fraction</code> 太高说明更新过激。</td>
+            </tr>
+            <tr>
+              <td>Clipped value loss</td>
+              <td>对 <code>V_new - V_old</code> 做裁剪，并取更大的 value loss。</td>
+              <td>限制 Critic 一步改太大，避免 value function 剧烈漂移。</td>
+              <td><code>value_loss</code>、<code>explained_variance</code>。</td>
+            </tr>
+            <tr>
+              <td>Entropy bonus</td>
+              <td>总 loss 里加入 <code>-entropy_coef * entropy</code>。</td>
+              <td>鼓励探索，防止策略太早变成确定动作。</td>
+              <td><code>entropy</code>、<code>action_std_mean</code>。</td>
+            </tr>
+            <tr>
+              <td>梯度裁剪</td>
+              <td><code>clip_grad_norm(parameters, max_grad_norm)</code> 限制整体梯度 norm。</td>
+              <td>防止一次反向传播产生过大参数更新，保护训练稳定性。</td>
+              <td>loss 是否突然爆炸，训练是否出现崩盘。</td>
+            </tr>
+            <tr>
+              <td>log_std clamp</td>
+              <td>把连续动作策略的 <code>log_std</code> 限制在上下界内。</td>
+              <td>防止探索噪声无限变大或接近 0。</td>
+              <td><code>Policy/mean_noise_std</code> 或 <code>action_std_mean</code>。</td>
+            </tr>
+            <tr>
+              <td>Approx KL</td>
+              <td><code>mean((ratio - 1) - log_ratio)</code>。</td>
+              <td>监控新旧策略距离，常用于自适应调学习率。</td>
+              <td>是否接近 <code>desired_kl</code>，太高说明策略改太多。</td>
+            </tr>
+            <tr>
+              <td>Adaptive learning rate</td>
+              <td>KL 太大就降学习率，KL 太小就升学习率。</td>
+              <td>让 PPO 更新幅度维持在合理区间。</td>
+              <td><code>learning_rate</code> 是否频繁撞上下限。</td>
+            </tr>
+            <tr>
+              <td>TensorBoard 指标</td>
+              <td>记录 reward、length、loss、KL、clip fraction、std、FPS。</td>
+              <td>让训练不是黑箱，能定位是 Actor、Critic、探索还是性能问题。</td>
+              <td><code>Train/*</code>、<code>Loss/*</code>、<code>Policy/*</code>、<code>Perf/*</code>。</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <p class="note">快速诊断口诀：reward 看效果，KL 看步子，clip fraction 看是否太猛，entropy/std 看探索，value loss/explained variance 看 Critic，FPS 看仿真吞吐。</p>
+    </section>
+
+    <section id="practice" class="band">
+      <h2>实践里最容易踩的坑</h2>
+      <div class="grid">
+        <article class="card">
+          <h3>Critic 学得太差</h3>
+          <p>如果价值估计很偏，Actor 会被错误信号带跑。常见处理是提高 Critic 更新次数、调小学习率、归一化奖励，或使用 target network。</p>
+        </article>
+        <article class="card">
+          <h3>探索太少</h3>
+          <p>Actor 太快变确定会停止探索。离散动作常加 entropy bonus，连续动作常加噪声或使用随机策略，让模型持续试新动作。</p>
+        </article>
+        <article class="card">
+          <h3>更新步子太大</h3>
+          <p>策略一口气改太多会导致新数据分布突然变化。PPO 的 clipped objective、较小学习率和 advantage normalization 都是在控制这个问题。</p>
+        </article>
+      </div>
+      <div class="table-wrap" style="margin-top: 18px;">
+        <table>
+          <thead>
+            <tr>
+              <th>现象</th>
+              <th>可能原因</th>
+              <th>排查方向</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>奖励长期不涨</td>
+              <td>奖励过稀疏、探索不足、学习率不合适。</td>
+              <td>画 reward 曲线、entropy 曲线、动作分布；先在简单环境验证代码。</td>
+            </tr>
+            <tr>
+              <td>Value loss 爆炸</td>
+              <td>奖励尺度太大、bootstrap 目标不稳定、网络初始化不佳。</td>
+              <td>奖励缩放或裁剪、梯度裁剪、降低 Critic 学习率。</td>
+            </tr>
+            <tr>
+              <td>策略突然崩掉</td>
+              <td>Actor 更新过大，旧策略和新策略差异太大。</td>
+              <td>降低学习率，加入 KL 约束或 PPO clipping，增大 batch。</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section>
+      <h2>一句话区分几个相关概念</h2>
+      <div class="grid">
+        <article class="card">
+          <h3>V(s) vs Q(s,a)</h3>
+          <p>V 评价“这个状态平均有多好”；Q 评价“在这个状态做这个动作有多好”。用 V 时 Actor 还要通过采样动作学习，用 Q 时 Critic 更直接评价动作。</p>
+        </article>
+        <article class="card">
+          <h3>On-policy vs Off-policy</h3>
+          <p>A2C、PPO 多是 on-policy，用当前策略采样的数据更新当前策略。DDPG、TD3、SAC 多是 off-policy，可以利用 replay buffer 里的旧数据。</p>
+        </article>
+        <article class="card">
+          <h3>离散 vs 连续动作</h3>
+          <p>离散动作 Actor 常输出 softmax 概率；连续动作 Actor 常输出高斯分布的均值和方差，或直接输出确定性动作。</p>
+        </article>
+      </div>
+    </section>
+
+    <footer>
+      Actor 负责变得更会选，Critic 负责变得更会看。两者一起，强化学习就从“蒙着眼试错”变成了“带反馈地练习”。
+    </footer>
+  </main>
+
+  <script>
+    const episode = document.querySelector("#episode");
+    const explore = document.querySelector("#explore");
+    const advance = document.querySelector("#advance");
+    const reset = document.querySelector("#reset");
+    const agent = document.querySelector("#agent");
+    const policyText = document.querySelector("#policyText");
+    const valueText = document.querySelector("#valueText");
+    const policySmall = document.querySelector("#policySmall");
+    const valueSmall = document.querySelector("#valueSmall");
+    const advSmall = document.querySelector("#advSmall");
+    const policyBar = document.querySelector("#policyBar");
+    const valueBar = document.querySelector("#valueBar");
+    const advBar = document.querySelector("#advBar");
+    const explain = document.querySelector("#explain");
+    const cpCart = document.querySelector("#cpCart");
+    const cpPole = document.querySelector("#cpPole");
+    const cpForce = document.querySelector("#cpForce");
+    const cpTimeline = document.querySelector("#cpTimeline");
+    const cpStep = document.querySelector("#cpStep");
+    const cpNarration = document.querySelector("#cpNarration");
+    const cpActor = document.querySelector("#cpActor");
+    const cpEnv = document.querySelector("#cpEnv");
+    const cpCritic = document.querySelector("#cpCritic");
+    const cpTD = document.querySelector("#cpTD");
+    const cpGAE = document.querySelector("#cpGAE");
+    const cpPPO = document.querySelector("#cpPPO");
+    const cpReadouts = {
+      x: [document.querySelector("#cpX"), document.querySelector("#cpXMeter")],
+      xDot: [document.querySelector("#cpXDot"), document.querySelector("#cpXDotMeter")],
+      theta: [document.querySelector("#cpTheta"), document.querySelector("#cpThetaMeter")],
+      thetaDot: [document.querySelector("#cpThetaDot"), document.querySelector("#cpThetaDotMeter")]
+    };
+
+    function clamp(value, min, max) {
+      return Math.min(max, Math.max(min, value));
+    }
+
+    function render() {
+      const e = Number(episode.value);
+      const noise = Number(explore.value) / 100;
+      const progress = e / 100;
+      const policy = clamp(0.28 + progress * 0.66 - noise * 0.13, 0.08, 0.96);
+      const value = clamp(0.1 + Math.pow(progress, 0.74) * 0.86 - noise * 0.06, 0.04, 0.98);
+      const advantage = clamp(policy - value + 0.14 - noise * 0.07, -0.32, 0.42);
+      const pos = 8 + policy * 72;
+      const advWidth = 50 + advantage * 110;
+
+      agent.style.left = `${pos}%`;
+      policyBar.style.width = `${policy * 100}%`;
+      valueBar.style.width = `${value * 100}%`;
+      advBar.style.width = `${clamp(advWidth, 4, 96)}%`;
+      advBar.style.background = advantage >= 0 ? "var(--good)" : "var(--critic)";
+
+      policyText.textContent = `${Math.round(policy * 100)}%`;
+      policySmall.textContent = `${Math.round(policy * 100)}%`;
+      valueText.textContent = value.toFixed(2);
+      valueSmall.textContent = value.toFixed(2);
+      advSmall.textContent = `${advantage >= 0 ? "+" : ""}${advantage.toFixed(2)}`;
+
+      if (advantage > 0.12) {
+        explain.textContent = "结果比 Critic 的预期更好，Actor 会提高这个动作的概率。训练早期经常看到这种正向推动。";
+      } else if (advantage < -0.08) {
+        explain.textContent = "Critic 认为这次动作低于预期，Actor 会降低它的概率。这个反馈能抑制看起来热闹但不赚钱的探索。";
+      } else {
+        explain.textContent = "Actor 的选择和 Critic 的估值逐渐接近，优势变小，策略更新也会更温和。";
+      }
+    }
+
+    advance.addEventListener("click", () => {
+      episode.value = String(clamp(Number(episode.value) + 7, 0, 100));
+      render();
+    });
+
+    reset.addEventListener("click", () => {
+      episode.value = "0";
+      explore.value = "45";
+      render();
+    });
+
+    episode.addEventListener("input", render);
+    explore.addEventListener("input", render);
+    render();
+
+    function fmt(value, digits = 3) {
+      return value >= 0 ? `+${value.toFixed(digits)}` : value.toFixed(digits);
+    }
+
+    function updateMeter(pair, value, scale) {
+      const normalized = clamp(value / scale, -1, 1);
+      pair[0].textContent = fmt(value);
+      pair[1].value = normalized;
+    }
+
+    function renderCartpoleTraining(timestamp) {
+      const t = timestamp / 1000;
+      const rolloutStep = Math.floor((t * 2.2) % 16);
+      const phase = (t * 2.2) % 16;
+      const x = Math.sin(t * 1.15) * 0.72 + Math.sin(t * 0.37) * 0.16;
+      const xDot = Math.cos(t * 1.15) * 0.78;
+      const theta = Math.sin(t * 1.9 + 0.7) * 0.18 + Math.sin(t * 0.6) * 0.05;
+      const thetaDot = Math.cos(t * 1.9 + 0.7) * 0.42;
+      const action = theta + 0.35 * thetaDot + 0.18 * x > 0 ? 1 : -1;
+      const reward = 1.0 - Math.abs(x) * 0.08 - Math.abs(theta) * 0.95;
+      const value = 0.55 + (1 - Math.abs(theta) / 0.24) * 0.26 - Math.abs(x) * 0.04;
+      const nextValue = value + Math.cos(t * 1.4) * 0.035;
+      const delta = reward + 0.99 * nextValue - value;
+      const advantage = delta + 0.99 * 0.95 * Math.sin(t * 0.9) * 0.22;
+      const mean = clamp(-theta * 2.5 - thetaDot * 0.7 - x * 0.2, -1.2, 1.2);
+      const std = 0.59 + Math.sin(t * 0.55) * 0.035;
+      const oldLogProb = -0.5 * Math.pow((action - mean) / std, 2) - Math.log(std) - 0.92;
+      const newLogProb = oldLogProb + Math.sin(t * 1.35) * 0.08;
+      const ratio = Math.exp(newLogProb - oldLogProb);
+      const clippedRatio = clamp(ratio, 0.8, 1.2);
+      const clipped = clippedRatio !== ratio;
+
+      cpCart.style.transform = `translateX(${x * 220}px)`;
+      cpPole.style.transform = `translateX(-50%) rotate(${theta * 180 / Math.PI}deg)`;
+      cpForce.classList.toggle("left", action < 0);
+      cpForce.style.transform = `translateX(${x * 220}px)`;
+      cpForce.textContent = `a=${action > 0 ? "+1" : "-1"}`;
+
+      updateMeter(cpReadouts.x, x, 1.0);
+      updateMeter(cpReadouts.xDot, xDot, 1.2);
+      updateMeter(cpReadouts.theta, theta, 0.25);
+      updateMeter(cpReadouts.thetaDot, thetaDot, 0.7);
+
+      cpTimeline.style.width = `${(phase / 16) * 100}%`;
+      cpStep.textContent = `rollout step t = ${rolloutStep} / 16`;
+      cpActor.textContent = `mean=${fmt(mean, 2)}, std=${std.toFixed(2)}, old_log_prob=${oldLogProb.toFixed(2)}, action=${action > 0 ? "+1" : "-1"}`;
+      cpEnv.textContent = `r=${reward.toFixed(3)}, done=0, next_obs=[x_next, x_dot_next, theta_next, theta_dot_next]`;
+      cpCritic.textContent = `V(s)=${value.toFixed(3)}, V(s_next)=${nextValue.toFixed(3)}, return≈${(advantage + value).toFixed(3)}`;
+      cpTD.textContent = `delta = r + 0.99*V_next - V = ${delta.toFixed(3)}`;
+      cpGAE.textContent = `A_t = delta_t + 0.99*0.95*A_next ≈ ${advantage.toFixed(3)}`;
+      cpPPO.textContent = `ratio=${ratio.toFixed(3)}, clipped=${clippedRatio.toFixed(3)}, clip_active=${clipped ? "yes" : "no"}`;
+
+      if (rolloutStep < 6) {
+        cpNarration.textContent = "采样阶段：Actor 选动作，Critic 估值，环境返回 reward，并把 old_log_prob 写入 buffer。";
+      } else if (rolloutStep < 11) {
+        cpNarration.textContent = "回报计算阶段：从 rollout 末尾反向算 TD error、GAE advantage 和 return。";
+      } else {
+        cpNarration.textContent = "PPO 更新阶段：用 new_log_prob 和 old_log_prob 算 ratio，再做 clip loss。";
+      }
+
+      requestAnimationFrame(renderCartpoleTraining);
+    }
+
+    requestAnimationFrame(renderCartpoleTraining);
+  </script>
+</body>
+</html>
