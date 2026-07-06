@@ -15,3 +15,22 @@ gym.register(
     },
 )
 
+gym.register(
+    id="RLLab-Cartpole-SwingUp-Direct-v0",
+    entry_point=f"{__name__}.cartpole_swingup_env:CartpoleSwingUpEnv",
+    disable_env_checker=True,
+    kwargs={
+        "env_cfg_entry_point": f"{__name__}.cartpole_swingup_env:RLLabCartpoleSwingUpEnvCfg",
+    },
+)
+
+gym.register(
+    id="RLLab-Cartpole-SwingUp-RGB-Camera-Direct-v0",
+    entry_point=f"{__name__}.cartpole_swingup_camera_env:CartpoleSwingUpCameraEnv",
+    disable_env_checker=True,
+    kwargs={
+        "env_cfg_entry_point": (
+            f"{__name__}.cartpole_swingup_camera_env:RLLabCartpoleSwingUpCameraEnvCfg"
+        ),
+    },
+)

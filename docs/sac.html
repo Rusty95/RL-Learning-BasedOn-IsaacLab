@@ -1,0 +1,907 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SAC 强化学习算法讲解</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #17211c;
+      --muted: #5e6f67;
+      --paper: #f7f8f4;
+      --panel: #ffffff;
+      --line: #d7ded7;
+      --actor: #0e7c86;
+      --critic: #b7552c;
+      --buffer: #6b5ca5;
+      --good: #287447;
+      --warn: #a76a16;
+      --shadow: 0 18px 45px rgba(23, 33, 28, 0.12);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    body {
+      margin: 0;
+      color: var(--ink);
+      background:
+        linear-gradient(180deg, rgba(255,255,255,0.7), rgba(247,248,244,0.95)),
+        var(--paper);
+      font-family: Inter, "Noto Sans SC", "Microsoft YaHei", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+      line-height: 1.65;
+    }
+
+    main {
+      width: min(1120px, calc(100% - 32px));
+      margin: 0 auto;
+    }
+
+    h1, h2, h3 {
+      margin: 0;
+      line-height: 1.15;
+      letter-spacing: 0;
+    }
+
+    h1 {
+      max-width: 820px;
+      font-size: clamp(42px, 8vw, 86px);
+    }
+
+    h2 {
+      margin-bottom: 20px;
+      font-size: clamp(28px, 4vw, 44px);
+    }
+
+    h3 {
+      margin-bottom: 10px;
+      font-size: 21px;
+    }
+
+    p {
+      margin: 0;
+      color: var(--muted);
+    }
+
+    code {
+      font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+    }
+
+    .hero {
+      min-height: 92vh;
+      display: grid;
+      grid-template-columns: minmax(0, 1.02fr) minmax(330px, 0.98fr);
+      gap: 40px;
+      align-items: center;
+      padding: 56px 0 36px;
+    }
+
+    .eyebrow {
+      display: inline-flex;
+      margin-bottom: 18px;
+      color: var(--actor);
+      font-size: 14px;
+      font-weight: 900;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .lead {
+      max-width: 720px;
+      margin-top: 22px;
+      color: #46564e;
+      font-size: clamp(18px, 2vw, 22px);
+    }
+
+    .hero-actions,
+    .toc {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-top: 28px;
+    }
+
+    .button,
+    .toc a {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 12px 16px;
+      background: var(--ink);
+      color: #fff;
+      font: inherit;
+      font-weight: 850;
+      text-decoration: none;
+      cursor: pointer;
+    }
+
+    .button.secondary,
+    .toc a {
+      background: #fff;
+      color: var(--ink);
+    }
+
+    section {
+      padding: 56px 0;
+    }
+
+    .band {
+      width: 100vw;
+      margin-left: calc(50% - 50vw);
+      padding: 64px max(16px, calc((100vw - 1120px) / 2));
+      border-top: 1px solid rgba(216,222,214,0.72);
+      border-bottom: 1px solid rgba(216,222,214,0.72);
+      background: rgba(255,255,255,0.66);
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 18px;
+    }
+
+    .two-col {
+      display: grid;
+      grid-template-columns: minmax(0, 0.92fr) minmax(0, 1.08fr);
+      gap: 22px;
+      align-items: start;
+    }
+
+    .card,
+    .panel {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel);
+      padding: 22px;
+      box-shadow: 0 12px 30px rgba(23,33,28,0.07);
+    }
+
+    .tag {
+      display: inline-flex;
+      margin-bottom: 14px;
+      border-radius: 999px;
+      padding: 5px 10px;
+      color: #fff;
+      font-size: 12px;
+      font-weight: 900;
+    }
+
+    .tag.actor { background: var(--actor); }
+    .tag.critic { background: var(--critic); }
+    .tag.buffer { background: var(--buffer); }
+    .tag.good { background: var(--good); }
+
+    .diagram {
+      position: relative;
+      min-height: 500px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    .diagram-inner {
+      position: absolute;
+      inset: 24px;
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      grid-template-rows: repeat(3, 1fr);
+      gap: 16px;
+    }
+
+    .node {
+      display: grid;
+      place-items: center;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fdfefd;
+      padding: 18px;
+      text-align: center;
+    }
+
+    .node strong {
+      display: block;
+      margin-bottom: 8px;
+      font-size: 21px;
+    }
+
+    .node span {
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .node.actor { border-color: rgba(14,124,134,0.38); box-shadow: inset 0 0 0 3px rgba(14,124,134,0.08); }
+    .node.critic { border-color: rgba(183,85,44,0.38); box-shadow: inset 0 0 0 3px rgba(183,85,44,0.08); }
+    .node.buffer { border-color: rgba(107,92,165,0.38); box-shadow: inset 0 0 0 3px rgba(107,92,165,0.08); }
+
+    .formula {
+      overflow-x: auto;
+      margin-top: 18px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #10221c;
+      color: #eff8f2;
+      padding: 20px;
+      font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+      font-size: 15px;
+      line-height: 2.05;
+      white-space: normal;
+    }
+
+    .formula .eq {
+      display: block;
+      min-width: max-content;
+    }
+
+    .formula .label {
+      display: inline-block;
+      min-width: 132px;
+      color: #abd8c6;
+      font-weight: 850;
+    }
+
+    .formula sub,
+    .formula sup {
+      font-size: 0.74em;
+      line-height: 0;
+    }
+
+    .frac {
+      display: inline-grid;
+      grid-template-rows: auto auto;
+      align-items: center;
+      justify-items: center;
+      vertical-align: middle;
+      margin: 0 4px;
+      line-height: 1.1;
+    }
+
+    .frac span:first-child {
+      border-bottom: 1px solid currentColor;
+      padding: 0 6px 2px;
+    }
+
+    .frac span:last-child {
+      padding-top: 2px;
+    }
+
+    .steps {
+      counter-reset: step;
+      display: grid;
+      gap: 14px;
+      margin: 24px 0 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .steps li {
+      counter-increment: step;
+      display: grid;
+      grid-template-columns: 44px 1fr;
+      gap: 16px;
+      align-items: start;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+      padding: 18px;
+    }
+
+    .steps li::before {
+      content: counter(step);
+      display: grid;
+      place-items: center;
+      width: 38px;
+      height: 38px;
+      border-radius: 50%;
+      background: var(--ink);
+      color: #fff;
+      font-weight: 900;
+    }
+
+    .note {
+      margin-top: 18px;
+      border-left: 4px solid var(--warn);
+      padding: 12px 14px;
+      background: rgba(167,106,22,0.08);
+      color: #5f4a22;
+    }
+
+    .table-wrap {
+      overflow-x: auto;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+    }
+
+    table {
+      width: 100%;
+      min-width: 760px;
+      border-collapse: collapse;
+    }
+
+    th,
+    td {
+      border-bottom: 1px solid var(--line);
+      padding: 14px 16px;
+      text-align: left;
+      vertical-align: top;
+    }
+
+    th {
+      background: #eef5f2;
+      color: var(--ink);
+      font-size: 14px;
+    }
+
+    td {
+      color: var(--muted);
+    }
+
+    tr:last-child td {
+      border-bottom: 0;
+    }
+
+    .code-block {
+      overflow-x: auto;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #111a17;
+      color: #ecf7f1;
+      padding: 20px;
+      font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+      font-size: 14px;
+      line-height: 1.75;
+      white-space: pre;
+    }
+
+    .lab {
+      display: grid;
+      grid-template-columns: minmax(0, 1.05fr) minmax(320px, 0.95fr);
+      gap: 20px;
+      align-items: stretch;
+      margin-top: 22px;
+    }
+
+    .world {
+      position: relative;
+      min-height: 420px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background:
+        linear-gradient(90deg, rgba(14,124,134,0.08) 1px, transparent 1px),
+        linear-gradient(rgba(14,124,134,0.08) 1px, transparent 1px),
+        #fff;
+      background-size: 42px 42px;
+      overflow: hidden;
+    }
+
+    .policy-cloud {
+      position: absolute;
+      left: 50%;
+      bottom: 128px;
+      width: 240px;
+      height: 130px;
+      border-radius: 50%;
+      background: rgba(14,124,134,0.13);
+      transform: translateX(-50%) scale(1);
+      transition: transform 220ms ease, background 220ms ease;
+    }
+
+    .action-dot {
+      position: absolute;
+      left: calc(50% - 8px);
+      bottom: 184px;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: var(--critic);
+      box-shadow: 0 10px 22px rgba(183,85,44,0.25);
+      transition: transform 220ms ease;
+    }
+
+    .target-line {
+      position: absolute;
+      left: 50%;
+      bottom: 80px;
+      width: 4px;
+      height: 250px;
+      border-radius: 999px;
+      background: rgba(40,116,71,0.42);
+    }
+
+    .readouts {
+      display: grid;
+      gap: 12px;
+    }
+
+    .metric {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+      padding: 14px;
+    }
+
+    .metric b {
+      display: block;
+      font-size: 25px;
+      line-height: 1.2;
+    }
+
+    .metric span {
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 750;
+    }
+
+    label {
+      display: grid;
+      gap: 8px;
+      color: var(--ink);
+      font-weight: 850;
+    }
+
+    input[type="range"] {
+      width: 100%;
+      accent-color: var(--actor);
+    }
+
+    footer {
+      padding: 42px 0 56px;
+      color: var(--muted);
+      text-align: center;
+    }
+
+    @media (max-width: 860px) {
+      .hero,
+      .grid,
+      .two-col,
+      .lab {
+        grid-template-columns: 1fr;
+      }
+
+      .diagram {
+        min-height: 620px;
+      }
+
+      .diagram-inner {
+        display: flex;
+        flex-direction: column;
+      }
+    }
+
+    @media (max-width: 560px) {
+      main {
+        width: min(100% - 22px, 1120px);
+      }
+
+      h1 {
+        font-size: 40px;
+      }
+
+      .steps li {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header class="hero">
+      <div>
+        <div class="eyebrow">Soft Actor-Critic</div>
+        <h1>SAC：一边追求奖励，一边保留探索</h1>
+        <p class="lead">SAC 是连续控制里非常常用的 off-policy Actor-Critic。它不只最大化 reward，还最大化策略熵，让智能体既会做事，也别太早变得死板。</p>
+        <div class="hero-actions">
+          <a class="button" href="#core">看核心公式</a>
+          <a class="button secondary" href="#flow">看完整流程</a>
+        </div>
+        <nav class="toc" aria-label="页面导航">
+          <a href="#compare">PPO 对比</a>
+          <a href="#core">最大熵</a>
+          <a href="#modules">三大模块</a>
+          <a href="#flow">训练流程</a>
+          <a href="#code">核心代码</a>
+          <a href="#practice">实践建议</a>
+        </nav>
+      </div>
+
+      <div class="diagram" aria-label="SAC algorithm diagram">
+        <div class="diagram-inner">
+          <div class="node actor">
+            <div><strong>Actor π(a|s)</strong><span>输出高斯策略，采样连续动作</span></div>
+          </div>
+          <div class="node">
+            <div><strong>Environment</strong><span>执行动作，返回 s_next、r、done</span></div>
+          </div>
+          <div class="node buffer">
+            <div><strong>Replay Buffer</strong><span>长期保存经验，可反复抽样</span></div>
+          </div>
+          <div class="node critic">
+            <div><strong>Twin Q Critics</strong><span>Q1/Q2 估计动作价值，取 min 降低高估</span></div>
+          </div>
+          <div class="node actor">
+            <div><strong>Entropy α</strong><span>控制探索强度，温度可自动学习</span></div>
+          </div>
+          <div class="node">
+            <div><strong>Soft Update</strong><span>缓慢更新 target critics，稳定 bootstrap</span></div>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <section id="compare" class="band">
+      <h2>先和 PPO 对比</h2>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>维度</th>
+              <th>PPO</th>
+              <th>SAC</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>数据使用</td>
+              <td>On-policy，当前策略采样的数据用几轮就丢。</td>
+              <td>Off-policy，数据进入 replay buffer，可以反复抽样训练。</td>
+            </tr>
+            <tr>
+              <td>动作空间</td>
+              <td>离散、连续都能用，但机器人连续控制里常需要较多样本。</td>
+              <td>特别适合连续动作控制，例如力矩、速度、末端位姿增量。</td>
+            </tr>
+            <tr>
+              <td>稳定技巧</td>
+              <td>ratio clip、GAE、KL 监控。</td>
+              <td>双 Q、target network、最大熵、重参数化采样。</td>
+            </tr>
+            <tr>
+              <td>探索方式</td>
+              <td>entropy bonus 是辅助项。</td>
+              <td>entropy 是目标函数的一部分，探索被系统性建模。</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="note">一句话：PPO 学的是“别让新策略离旧策略太远”；SAC 学的是“奖励要高，同时策略要保持足够随机”。</p>
+    </section>
+
+    <section id="core">
+      <h2>SAC 的核心：最大熵强化学习</h2>
+      <div class="two-col">
+        <div>
+          <p>普通 RL 最大化未来奖励。SAC 多加了一项 entropy，让策略不要只追求一个确定动作，而是在多个可行动作之间保留探索。这样在复杂连续控制里更不容易卡死。</p>
+          <p class="note">熵越大，动作分布越分散；熵越小，策略越确定。SAC 用温度参数 α 控制“奖励”和“探索”的权衡。</p>
+        </div>
+        <div class="formula">
+          <span class="eq"><span class="label">普通 RL</span>maximize E[Σ<sub>t</sub> γ<sup>t</sup> r<sub>t</sub>]</span>
+          <span class="eq"><span class="label">最大熵 RL</span>maximize E[Σ<sub>t</sub> γ<sup>t</sup>(r<sub>t</sub> + α H(π(·|s<sub>t</sub>)))]</span>
+          <span class="eq"><span class="label">连续策略</span>a<sub>t</sub> ~ π(a|s) = Normal(μ(s), σ(s))</span>
+        </div>
+      </div>
+    </section>
+
+    <section class="band">
+      <h2>小演示：α 怎么影响探索</h2>
+      <p>拖动温度 α。α 越大，策略越重视 entropy，动作分布越宽；α 越小，策略越贪心，更贴近当前 Q 最大的动作。</p>
+      <div class="lab">
+        <div class="world">
+          <div class="target-line"></div>
+          <div class="policy-cloud" id="policyCloud"></div>
+          <div class="action-dot" id="actionDot"></div>
+        </div>
+        <aside class="panel readouts">
+          <label>
+            Temperature α
+            <input id="alphaSlider" type="range" min="1" max="100" value="35">
+          </label>
+          <div class="metric">
+            <b id="alphaText">0.35</b>
+            <span>探索温度 α</span>
+          </div>
+          <div class="metric">
+            <b id="entropyText">1.12</b>
+            <span>策略 entropy</span>
+          </div>
+          <div class="metric">
+            <b id="stdText">0.52</b>
+            <span>动作标准差 std</span>
+          </div>
+          <p class="note" id="alphaExplain">当前 α 中等，策略既会靠近高 Q 动作，也保留一定随机性。</p>
+        </aside>
+      </div>
+    </section>
+
+    <section id="modules">
+      <h2>SAC 的三大模块</h2>
+      <div class="grid">
+        <article class="card">
+          <span class="tag actor">Actor</span>
+          <h3>随机高斯策略</h3>
+          <p>Actor 输入状态，输出动作分布参数 <code>mean</code> 和 <code>log_std</code>。训练时采样动作，评估时通常用均值动作。</p>
+        </article>
+        <article class="card">
+          <span class="tag critic">Twin Q</span>
+          <h3>两个 Q 网络</h3>
+          <p>SAC 不学单个 V(s)，而是学 <code>Q(s,a)</code>。两个 Q 网络取较小值，可以缓解高估问题。</p>
+        </article>
+        <article class="card">
+          <span class="tag buffer">Replay Buffer</span>
+          <h3>经验复用</h3>
+          <p>每次交互得到 <code>(s,a,r,s_next,done)</code> 后放进 buffer。训练时随机抽 batch，样本效率比 PPO 高。</p>
+        </article>
+      </div>
+    </section>
+
+    <section id="flow" class="band">
+      <h2>SAC 完整训练流程</h2>
+      <ol class="steps">
+        <li>
+          <div>
+            <h3>用 Actor 和环境交互</h3>
+            <p>当前状态 <code>s</code> 输入 Actor，采样连续动作 <code>a</code>，环境返回 <code>s_next, r, done</code>。</p>
+          </div>
+        </li>
+        <li>
+          <div>
+            <h3>写入 Replay Buffer</h3>
+            <p>保存 transition：<code>(s, a, r, s_next, done)</code>。这批数据以后可以被反复抽样，不要求来自最新策略。</p>
+          </div>
+        </li>
+        <li>
+          <div>
+            <h3>随机抽 mini-batch</h3>
+            <p>从 replay buffer 抽样，打破时间相关性。典型 batch size 是 256 或更大。</p>
+          </div>
+        </li>
+        <li>
+          <div>
+            <h3>计算 soft Q target</h3>
+            <p>用 target Q 网络估计下一状态价值，同时减去 entropy 温度项。</p>
+            <div class="formula">
+              <span class="eq"><span class="label">采样下个动作</span>a' ~ π(·|s')</span>
+              <span class="eq"><span class="label">soft value</span>V(s') = min(Q<sub>1,target</sub>(s',a'), Q<sub>2,target</sub>(s',a')) - α log π(a'|s')</span>
+              <span class="eq"><span class="label">Q target</span>y = r + γ(1-done)V(s')</span>
+            </div>
+          </div>
+        </li>
+        <li>
+          <div>
+            <h3>更新两个 Q 网络</h3>
+            <p>让 <code>Q1(s,a)</code> 和 <code>Q2(s,a)</code> 都靠近 target <code>y</code>。</p>
+            <div class="formula">
+              <span class="eq"><span class="label">Q 损失</span>L<sub>Q</sub> = MSE(Q<sub>1</sub>(s,a), y) + MSE(Q<sub>2</sub>(s,a), y)</span>
+            </div>
+          </div>
+        </li>
+        <li>
+          <div>
+            <h3>更新 Actor</h3>
+            <p>Actor 想让动作 Q 值高，同时保持 entropy。因为 optimizer 最小化 loss，所以写成下面这个形式。</p>
+            <div class="formula">
+              <span class="eq"><span class="label">Actor loss</span>L<sub>π</sub> = E[α log π(a|s) - min(Q<sub>1</sub>(s,a), Q<sub>2</sub>(s,a))]</span>
+            </div>
+          </div>
+        </li>
+        <li>
+          <div>
+            <h3>更新温度 α</h3>
+            <p>自动温度调节会让 entropy 接近目标 entropy。探索太少就增大 α，探索太多就减小 α。</p>
+            <div class="formula">
+              <span class="eq"><span class="label">α loss</span>L<sub>α</sub> = E[-α(log π(a|s) + target_entropy)]</span>
+            </div>
+          </div>
+        </li>
+        <li>
+          <div>
+            <h3>软更新 target Q</h3>
+            <p>target Q 不直接复制当前 Q，而是缓慢靠近，减少 bootstrap 目标抖动。</p>
+            <div class="formula">
+              <span class="eq"><span class="label">soft update</span>θ<sub>target</sub> ← τθ + (1-τ)θ<sub>target</sub></span>
+            </div>
+          </div>
+        </li>
+      </ol>
+    </section>
+
+    <section>
+      <h2>SAC 每个 loss 到底在管什么</h2>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>损失</th>
+              <th>更新谁</th>
+              <th>目标</th>
+              <th>直觉</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>Q loss</code></td>
+              <td>Q1、Q2</td>
+              <td>让 <code>Q(s,a)</code> 接近 soft Bellman target。</td>
+              <td>Critic 学会评价动作到底值多少。</td>
+            </tr>
+            <tr>
+              <td><code>Actor loss</code></td>
+              <td>Actor</td>
+              <td>选择高 Q 动作，同时保留 entropy。</td>
+              <td>既要赚钱，也别太早只会一种动作。</td>
+            </tr>
+            <tr>
+              <td><code>Alpha loss</code></td>
+              <td>温度 α</td>
+              <td>让策略 entropy 接近目标值。</td>
+              <td>自动调探索强度。</td>
+            </tr>
+            <tr>
+              <td><code>Soft update</code></td>
+              <td>Target Q</td>
+              <td>让 target 网络慢慢跟随 Q 网络。</td>
+              <td>别让 bootstrap 目标跟着当前网络一起剧烈摆动。</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="code" class="band">
+      <h2>SAC 核心代码骨架</h2>
+      <p>这不是完整工程版，而是把 SAC 的 update 逻辑压缩成最重要的几行。先看懂这个，再写 IsaacLab 工程会顺很多。</p>
+      <div class="code-block"># batch = replay_buffer.sample(batch_size)
+obs, actions, rewards, next_obs, dones = batch
+
+# 1. 计算 soft Q target
+with torch.no_grad():
+    next_actions, next_log_probs = actor.sample(next_obs)
+    q1_next = q1_target(next_obs, next_actions)
+    q2_next = q2_target(next_obs, next_actions)
+    q_next = torch.min(q1_next, q2_next) - alpha * next_log_probs
+    target_q = rewards + gamma * (1 - dones) * q_next
+
+# 2. 更新 Q1/Q2
+q1 = q1_net(obs, actions)
+q2 = q2_net(obs, actions)
+q_loss = mse(q1, target_q) + mse(q2, target_q)
+q_optimizer.zero_grad()
+q_loss.backward()
+q_optimizer.step()
+
+# 3. 更新 Actor
+new_actions, log_probs = actor.sample(obs)
+q1_new = q1_net(obs, new_actions)
+q2_new = q2_net(obs, new_actions)
+q_new = torch.min(q1_new, q2_new)
+actor_loss = (alpha * log_probs - q_new).mean()
+actor_optimizer.zero_grad()
+actor_loss.backward()
+actor_optimizer.step()
+
+# 4. 自动温度 α
+alpha_loss = -(log_alpha * (log_probs + target_entropy).detach()).mean()
+alpha_optimizer.zero_grad()
+alpha_loss.backward()
+alpha_optimizer.step()
+alpha = log_alpha.exp()
+
+# 5. 软更新 target networks
+for p, p_targ in zip(q1_net.parameters(), q1_target.parameters()):
+    p_targ.data.mul_(1 - tau)
+    p_targ.data.add_(tau * p.data)</div>
+    </section>
+
+    <section>
+      <h2>和 PPO 里的概念怎么对上</h2>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>PPO 里的概念</th>
+              <th>SAC 里的对应</th>
+              <th>差别</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>RolloutBuffer</td>
+              <td>ReplayBuffer</td>
+              <td>PPO 临时保存一批 on-policy 数据；SAC 长期保存历史数据。</td>
+            </tr>
+            <tr>
+              <td>V(s)</td>
+              <td>Q(s,a)</td>
+              <td>PPO 常估状态价值；SAC 直接估状态-动作价值。</td>
+            </tr>
+            <tr>
+              <td>Entropy bonus</td>
+              <td>最大熵目标</td>
+              <td>PPO 里是辅助正则；SAC 里是算法核心。</td>
+            </tr>
+            <tr>
+              <td>Approx KL / clip</td>
+              <td>target network / twin Q / α</td>
+              <td>PPO 限制策略变化；SAC 通过 Q 学习和熵调节稳定更新。</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="practice" class="band">
+      <h2>实践里怎么判断 SAC 健康不健康</h2>
+      <div class="grid">
+        <article class="card">
+          <h3>Q loss</h3>
+          <p>Q loss 可以有波动，但长期爆炸说明 reward scale、learning rate 或 target 计算有问题。</p>
+        </article>
+        <article class="card">
+          <h3>Entropy / α</h3>
+          <p>α 如果一直变大，说明策略太确定；α 如果一直变小，说明策略过于随机。</p>
+        </article>
+        <article class="card">
+          <h3>Replay Buffer</h3>
+          <p>buffer 太小会过拟合近期数据，太大可能混入太旧的数据。机器人任务里通常从中等容量开始。</p>
+        </article>
+      </div>
+      <p class="note">学习 SAC 的检查点：你能解释 replay buffer 为什么能复用旧数据、为什么要两个 Q、为什么 actor loss 是 α logπ - Q、为什么 target Q 要软更新。</p>
+    </section>
+
+    <footer>
+      PPO 让你理解稳定的 on-policy 更新；SAC 会带你进入 off-policy、最大熵和连续控制的核心地带。
+    </footer>
+  </main>
+
+  <script>
+    const alphaSlider = document.querySelector("#alphaSlider");
+    const alphaText = document.querySelector("#alphaText");
+    const entropyText = document.querySelector("#entropyText");
+    const stdText = document.querySelector("#stdText");
+    const alphaExplain = document.querySelector("#alphaExplain");
+    const policyCloud = document.querySelector("#policyCloud");
+    const actionDot = document.querySelector("#actionDot");
+
+    function clamp(value, min, max) {
+      return Math.min(max, Math.max(min, value));
+    }
+
+    function renderAlpha() {
+      const alpha = Number(alphaSlider.value) / 100;
+      const std = 0.15 + alpha * 1.05;
+      const entropy = 0.5 + Math.log(std + 0.2);
+      const spread = 0.62 + alpha * 1.3;
+      const offset = Math.sin(Date.now() / 420) * std * 75;
+
+      alphaText.textContent = alpha.toFixed(2);
+      stdText.textContent = std.toFixed(2);
+      entropyText.textContent = entropy.toFixed(2);
+      policyCloud.style.transform = `translateX(-50%) scale(${spread.toFixed(2)}, ${clamp(spread * 0.72, 0.55, 1.45).toFixed(2)})`;
+      policyCloud.style.background = alpha > 0.6 ? "rgba(107,92,165,0.16)" : "rgba(14,124,134,0.13)";
+      actionDot.style.transform = `translateX(${offset.toFixed(1)}px)`;
+
+      if (alpha < 0.25) {
+        alphaExplain.textContent = "α 较小，策略更贪心，动作集中在当前高 Q 区域，探索较弱。";
+      } else if (alpha > 0.65) {
+        alphaExplain.textContent = "α 较大，策略更重视 entropy，动作分布更宽，探索更强。";
+      } else {
+        alphaExplain.textContent = "当前 α 中等，策略既会靠近高 Q 动作，也保留一定随机性。";
+      }
+    }
+
+    function animate() {
+      renderAlpha();
+      requestAnimationFrame(animate);
+    }
+
+    alphaSlider.addEventListener("input", renderAlpha);
+    animate();
+  </script>
+</body>
+</html>

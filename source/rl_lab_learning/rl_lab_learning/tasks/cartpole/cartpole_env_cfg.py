@@ -13,7 +13,7 @@ class RLLabCartpoleEnvCfg(CartpoleEnvCfg):
         num_envs=1024,
         env_spacing=4.0,
         replicate_physics=True,
-        clone_in_fabric=True,
+        clone_in_fabric=False,
     )
 
     episode_length_s = 5.0

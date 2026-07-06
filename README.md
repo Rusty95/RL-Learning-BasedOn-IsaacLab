@@ -8,6 +8,7 @@ Current contents:
 - Cartpole task registration
 - RSL-RL PPO baseline wrappers
 - Standalone PPO implemented in this repository, independent of RSL-RL algorithm classes
+- Standalone SAC implemented in this repository, independent of RSL-RL algorithm classes
 - TensorBoard and CSV metrics
 - Offline PNG curve plotting
 
@@ -46,14 +47,16 @@ RL-Learning-BasedOn-IsaacLab/
 │   │   └── train.py
 │   └── standalone/
 │       ├── plot_metrics.py
-│       └── train_ppo.py
+│       ├── train_ppo.py
+│       └── train_sac.py
 └── source/
     └── rl_lab_learning/
         ├── pyproject.toml
         ├── setup.py
         └── rl_lab_learning/
             ├── algorithms/
-            │   └── ppo.py
+            │   ├── ppo.py
+            │   └── sac.py
             └── tasks/
                 └── cartpole/
                     ├── cartpole_env_cfg.py
@@ -99,6 +102,54 @@ Logs:
 logs/standalone/ppo/
 ```
 
+## Train Cartpole Swing-Up PPO
+
+The swing-up task uses full-angle initialization, a five-dimensional
+`[sin(theta), cos(theta), pole_vel, cart_pos, cart_vel]` observation, and does
+not terminate when the pole passes 90 degrees.
+
+```bash
+python scripts/standalone/train_ppo.py \
+  --task RLLab-Cartpole-SwingUp-Direct-v0 \
+  --num_envs 1024 \
+  --max_iterations 200 \
+  --num_steps 32 \
+  --learning_rate 3.0e-4 \
+  --gamma 0.995 \
+  --entropy_coef 0.003 \
+  --hidden_dim 128 \
+  --save_interval 100 \
+  --experiment_name cartpole_swingup_centered \
+  --run_name reward_v2 \
+  --headless
+```
+
+The checkpoints are written under:
+
+```text
+logs/standalone/ppo/cartpole_swingup_centered/
+```
+
+Use `model_200.pt` for deterministic playback. Longer training is not
+necessarily better: monitor KL divergence and episode length, and retain the
+last checkpoint before a destabilizing PPO update.
+
+## Train Standalone SAC
+
+```bash
+python scripts/standalone/train_sac.py \
+  --task RLLab-Cartpole-Direct-v0 \
+  --num_envs 1024 \
+  --max_iterations 1500
+```
+
+SAC is off-policy, so it writes transitions to a replay buffer and starts gradient updates after
+`--initial_random_steps` global environment steps. Logs:
+
+```text
+logs/standalone/sac/
+```
+
 TensorBoard:
 
 ```bash
@@ -122,4 +173,3 @@ docs/<ALGORITHM>_GUIDE.md
 ```
 
 Keep algorithm code independent from Isaac Lab startup code where possible. Scripts should launch Isaac Sim, create environments, and call algorithm modules.
-
